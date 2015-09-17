@@ -759,8 +759,11 @@ void Entity::updateCurrentBoneFrame(SSBoneFrame *bf)
     next_bf = &model->animations[bf->animations.current_animation].frames[bf->animations.current_frame];
     last_bf = &model->animations[bf->animations.lerp_last_animation].frames[bf->animations.lerp_last_frame];
 
-    bf->bb_max = last_bf->bb_max.lerp(next_bf->bb_max, bf->animations.lerp);
-    bf->bb_min = last_bf->bb_min.lerp(next_bf->bb_min, bf->animations.lerp);
+    // FIXME: bbox interp isn't needed for render, and causes incorrect bboxes after anim transitions:
+//    bf->bb_max = last_bf->bb_max.lerp(next_bf->bb_max, bf->animations.lerp);
+//    bf->bb_min = last_bf->bb_min.lerp(next_bf->bb_min, bf->animations.lerp);
+    bf->bb_max = next_bf->bb_max;
+    bf->bb_min = next_bf->bb_min;
     bf->centre = last_bf->centre.lerp(next_bf->centre, bf->animations.lerp);
     bf->pos = last_bf->pos.lerp(next_bf->pos, bf->animations.lerp);
 
