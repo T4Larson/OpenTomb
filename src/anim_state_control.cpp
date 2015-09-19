@@ -442,12 +442,12 @@ int State_Control_Lara(Character* character, struct SSAnimation *ss_anim)
                        (pos[2] + character->m_maxStepUpHeight < next_fc.floor_point[2]) &&
                        (pos[2] + 2944.0 >= next_fc.floor_point[2]))  // Trying to climb on
                     {
-                        if(pos[2] + 1920.0 >= next_fc.floor_point[2])
+                        // Fixme: grabheight/gravity values
+                        const btScalar grabheight = 800.0f;  // Lara arms-up...estimated
+                        const btScalar distance = next_fc.floor_point[2]-pos[2] - grabheight;
+                        const btScalar gravity = 6;          // based on tr gravity accel (6 units / tick^2)
+                        if(distance > 0.0f && pos[2] + 1920.0 >= next_fc.floor_point[2])
                         {
-                            // Fixme: grabheight/gravity values
-                            const btScalar grabheight = 800.0f;  // Lara arms-up...estimated
-                            const btScalar distance = next_fc.floor_point[2]-pos[2] - grabheight;
-                            const btScalar gravity = 6;          // based on tr gravity accel (6 units / tick^2)
                             character->m_vspeed_override = 3.0f + sqrt(gravity * 2.0f * distance);
                             ss_anim->next_state = TR_STATE_LARA_JUMP_UP;
                             break;

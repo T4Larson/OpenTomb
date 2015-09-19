@@ -2272,7 +2272,6 @@ void Character::frame(btScalar time)
     }
 
     fixPenetrations(nullptr);
-    m_bt.no_fix_all = false;    // FIXME
 
     processSector();
 
@@ -2289,6 +2288,10 @@ void Character::frame(btScalar time)
     }
 
     animStepResult = stepAnimation(time);
+    if(animStepResult == ENTITY_ANIM_NEWANIM)
+    {
+        m_bt.no_fix_all = false;    // FIXME: only the current interaction item should be excluded from collision
+    }
 
     if(m_bf.animations.onFrame != nullptr)
     {
