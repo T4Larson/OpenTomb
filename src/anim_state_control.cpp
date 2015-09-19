@@ -794,6 +794,22 @@ int State_Control_Lara(Character* character, struct SSAnimation *ss_anim)
 
             character->lean(cmd, 6.0);
 
+            // --------------------------------------
+            // Original TR2+ jump timing tweak, when
+            // starting a running jump from standing:
+            static bool as1_canRunJump = true;
+            if(engine_world.engineVersion > loader::Engine::TR1)
+            {
+                if(ss_anim->current_animation == TR_ANIMATION_LARA_STAY_TO_RUN) {
+                    as1_canRunJump = false;
+                }
+                else if(ss_anim->current_animation != TR_ANIMATION_LARA_RUN || ss_anim->current_frame == 4)
+                {
+                    as1_canRunJump = true;
+                }
+            }
+            // --------------------------------------
+
             if(character->m_moveType == MoveType::FreeFalling)
             {
                 character->setAnimation(TR_ANIMATION_LARA_FREE_FALL_FORWARD, 0);
@@ -878,7 +894,7 @@ int State_Control_Lara(Character* character, struct SSAnimation *ss_anim)
                 {
                     ss_anim->next_state = TR_STATE_LARA_WALK_FORWARD;
                 }
-                else if(cmd->jump)
+                else if(cmd->jump && as1_canRunJump)
                 {
                     ss_anim->next_state = TR_STATE_LARA_JUMP_FORWARD;
                 }
