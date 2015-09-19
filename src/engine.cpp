@@ -851,7 +851,7 @@ void Engine_InitBullet()
     bt_engine_dynamicsWorld = new btDiscreteDynamicsWorld(bt_engine_dispatcher, bt_engine_overlappingPairCache, bt_engine_solver, bt_engine_collisionConfiguration);
     bt_engine_dynamicsWorld->setInternalTickCallback(Engine_InternalTickCallback);
     bt_engine_dynamicsWorld->setInternalTickCallback(Engine_InternalPreTickCallback, 0, true);
-    bt_engine_dynamicsWorld->setGravity(btVector3(0, 0, -4500.0));
+    bt_engine_dynamicsWorld->setGravity(btVector3(0, 0, -5400.0));
 
     debugDrawer.setDebugMode(btIDebugDraw::DBG_DrawWireframe | btIDebugDraw::DBG_DrawConstraints);
     bt_engine_dynamicsWorld->setDebugDrawer(&debugDrawer);
