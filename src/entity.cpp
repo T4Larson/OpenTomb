@@ -47,14 +47,100 @@ void Entity::createGhosts()
         gltr.setOrigin(gltr * m_bf.bone_tags[i].mesh_base->m_center);
 
         m_bt.ghostObjects.back()->setWorldTransform(gltr);
-        m_bt.ghostObjects.back()->setCollisionFlags(m_bt.ghostObjects.back()->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE | btCollisionObject::CF_CHARACTER_OBJECT);
+//        m_bt.ghostObjects.back()->setCollisionFlags(m_bt.ghostObjects.back()->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE | btCollisionObject::CF_CHARACTER_OBJECT);
+        m_bt.ghostObjects.back()->setCollisionFlags(m_bt.ghostObjects.back()->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
         m_bt.ghostObjects.back()->setUserPointer(m_self.get());
         m_bt.ghostObjects.back()->setCollisionShape(m_bt.shapes.back().get());
         bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects.back().get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
 
         m_bt.last_collisions.emplace_back();
     }
+
+    createGhost();
 }
+
+//btVector3 g_mss_positions[2] = {
+//        {0,0,0},
+//        {0,0,800}
+//};
+//btScalar g_mss_radii[2] = {
+//        200,
+//        100
+//};
+void Entity::createGhost(int ghostType)
+{
+    if(m_bt.ghost || !m_bf.animations.model || m_bf.animations.model->mesh_count <= 0)
+        return;
+
+//    btVector3 box = COLLISION_GHOST_VOLUME_COEFFICIENT * (m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin);
+//    btCollisionShape *ghostshape = new btCapsuleShapeZ(100,762 - 2*100);  // TODO: lara base values from tr4
+    btCollisionShape *ghostshape = new btCylinderShapeZ({100.0f, 100.0f, 762.0f/2.0f});  // TODO: lara base values from tr4
+
+//    btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 2);
+//    btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 1);
+//    ghostshape->setLocalScaling({0.3f, 1.0f, 3.0f});
+//    ghostshape->setLocalScaling({0.3f, 0.3f, 0.3f});
+
+    btTransform ghostoffs;
+    ghostoffs.setIdentity();
+    ghostoffs.setOrigin({0,0,762.0f/2.0f - 100.0f/2.0f});
+
+    m_bt.ghost.reset(new btPairCachingGhostObject());
+
+    m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
+    m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags()); // should have contact! ... | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    m_bt.ghost->setUserPointer(m_self.get());
+    m_bt.ghost->setCollisionShape(ghostshape);
+    bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghost.get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
+}
+void Entity::deleteGhost()
+{
+    if(m_bt.ghost)
+    {
+        bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghost.get());
+        btCollisionShape *ghostshape = m_bt.ghost->getCollisionShape();
+        delete(ghostshape);
+        m_bt.ghost.reset();
+    }
+}
+void Entity::updateGhost()
+{
+    btScalar lowHeight = 384.0f;
+    btScalar topHeight = 762.0f;
+    btScalar radius = 100.0f;
+
+    btScalar gshape_radius = 100.0f;
+//    btScalar gshape_height = 762.0f - 2.0f * gshape_radius;
+
+    btScalar gshape_height = 762.0f/2.0f;
+
+    // capsule localScaling scales radius, too:
+    // total capsule height = height + 2*radius
+    // -> when radius is adjusted, also need to adjust height (if caps-top should be height)
+    if(m_bt.ghost)  // FIXME: is this ever called before createGhosts() ???
+    {
+        btScalar rad_scale = radius / gshape_radius;
+
+//        btScalar newHeight = topHeight - lowHeight - 2.0f*radius;
+//        if(newHeight < 0.0f) newHeight = 0.001f;    // fixme: need squashed?
+//
+//        btScalar height_scale = newHeight / gshape_height;
+//        btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
+
+
+        btScalar newHeight = topHeight - lowHeight;
+        btScalar height_scale = newHeight / gshape_height;
+        btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
+
+        m_bt.ghost->getCollisionShape()->setLocalScaling({rad_scale, rad_scale, height_scale/2.0f});
+        btTransform ghostoffs;
+        ghostoffs.setIdentity();
+        ghostoffs.setOrigin({0,0, height_ofs});
+        m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
+    }
+}
+
+
 
 void Entity::enable()
 {
@@ -124,10 +210,15 @@ void Entity::genRigidBody()
                 cshape = BT_CSfromSphere(mesh->m_radius);
                 break;
 
+                // non-static btConvexTriangleMeshShape:
+                // FIXME: PROBLEM: may be used for a static RB below...
+//            case COLLISION_SHAPE_TRIMESH:
             case COLLISION_SHAPE_TRIMESH_CONVEX:
                 cshape = BT_CSfromMesh(mesh, true, true, false);
                 break;
 
+                // static btBvhTriangleMeshShape:
+                // FIXME: PROBLEM: may be used for a non-static RB below...
             case COLLISION_SHAPE_TRIMESH:
                 cshape = BT_CSfromMesh(mesh, true, true, true);
                 break;
@@ -142,36 +233,53 @@ void Entity::genRigidBody()
 
         if(cshape)
         {
+            short int coll_group = 0;
+            short int coll_with = 0;
             btVector3 localInertia(0, 0, 0);
             if(m_self->collision_shape != COLLISION_SHAPE_TRIMESH)
-                cshape->calculateLocalInertia(0.0, localInertia);
+                cshape->calculateLocalInertia(0.0, localInertia);   // FIXME
 
             btTransform startTransform = m_transform * m_bf.bone_tags[i].full_transform;
             btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
+
+            // mass 0.0 creates CF_STATIC_OBJECT :
             m_bt.bt_body.back().reset(new btRigidBody(0.0, motionState, cshape, localInertia));
 
             switch(m_self->collision_type)
             {
                 case COLLISION_TYPE_KINEMATIC:
-                    m_bt.bt_body.back()->setCollisionFlags(m_bt.bt_body.back()->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+                    coll_group = COLLISION_GROUP_KINEMATIC;
+                    coll_with = COLLISION_GROUP_ALL ^ COLLISION_GROUP_STATIC;
+                    m_bt.bt_body.back()->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
+//                    m_bt.bt_body.back()->setActivationState(DISABLE_DEACTIVATION);
                     break;
 
                 case COLLISION_TYPE_GHOST:
-                    m_bt.bt_body.back()->setCollisionFlags(m_bt.bt_body.back()->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+                    coll_group = COLLISION_GROUP_DYNAMICS;
+                    coll_with = COLLISION_GROUP_ALL;
+                    m_bt.bt_body.back()->setCollisionFlags(btCollisionObject::CF_NO_CONTACT_RESPONSE);
                     break;
 
                 case COLLISION_TYPE_ACTOR:
                 case COLLISION_TYPE_VEHICLE:
-                    m_bt.bt_body.back()->setCollisionFlags(m_bt.bt_body.back()->getCollisionFlags() | btCollisionObject::CF_CHARACTER_OBJECT);
+                    coll_group = COLLISION_GROUP_CHARACTERS;
+                    coll_with = COLLISION_GROUP_ALL;
+                    // CF_CHARACTER_OBJECT is unused/deprecated
+                    m_bt.bt_body.back()->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
+                    // FIXME: active RBs spoil forward wallchecks (stop-at-wall anim)
+//                    m_bt.bt_body.back()->setActivationState(DISABLE_DEACTIVATION);
                     break;
 
                 case COLLISION_TYPE_STATIC:
                 default:
+                    coll_group = COLLISION_GROUP_STATIC;
+                    coll_with = COLLISION_GROUP_ALL;
                     m_bt.bt_body.back()->setCollisionFlags(m_bt.bt_body.back()->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
                     break;
+                // FIXME: COLLISION_TYPE_DYNAMIC?
             }
 
-            bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), COLLISION_GROUP_KINEMATIC, COLLISION_MASK_ALL);
+            bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), coll_group, coll_with);
             m_bt.bt_body.back()->setUserPointer(m_self.get());
         }
     }
@@ -275,6 +383,8 @@ void Entity::ghostUpdate()
             m_bt.ghostObjects[i]->getWorldTransform() = tr;
         }
     }
+
+    updateGhost();
 }
 
 void Entity::updateCurrentCollisions()
@@ -342,9 +452,171 @@ void Entity::updateCurrentCollisions()
     }
 }
 
+
+
+
+// ====================================================
+
+btManifoldArray m_manifoldArray;
+
+bool Entity::recoverFromPenetration()
+{
+    btCollisionWorld* collisionWorld = bt_engine_dynamicsWorld;
+
+    btPairCachingGhostObject* m_ghostObject = m_bt.ghost.get();
+//    btConvexShape* m_convexShape = m_bt.ghost->getCollisionShape();
+    btCollisionShape* m_convexShape = m_bt.ghost->getCollisionShape();
+
+    btVector3 m_currentPosition;
+
+    btVector3 m_touchingNormal;
+
+//    btManifoldArray m_manifoldArray = m_bt.manifoldArray.get();
+
+    // Here we must refresh the overlapping paircache as the penetrating movement itself or the
+    // previous recovery iteration might have used setWorldTransform and pushed us into an object
+    // that is not in the previous cache contents from the last timestep, as will happen if we
+    // are pushed into a new AABB overlap. Unhandled this means the next convex sweep gets stuck.
+    //
+    // Do this by calling the broadphase's setAabb with the moved AABB, this will update the broadphase
+    // paircache and the ghostobject's internal paircache at the same time.    /BW
+
+    btVector3 minAabb, maxAabb;
+    m_convexShape->getAabb(m_ghostObject->getWorldTransform(), minAabb,maxAabb);
+    collisionWorld->getBroadphase()->setAabb(m_ghostObject->getBroadphaseHandle(),
+                         minAabb,
+                         maxAabb,
+                         collisionWorld->getDispatcher());
+
+    bool penetration = false;
+
+    collisionWorld->getDispatcher()->dispatchAllCollisionPairs(m_ghostObject->getOverlappingPairCache(), collisionWorld->getDispatchInfo(), collisionWorld->getDispatcher());
+
+    m_currentPosition = m_ghostObject->getWorldTransform().getOrigin();
+
+    btScalar maxPen = btScalar(0.0);
+//    printf("*** NUMPAIRS: %d\n",m_ghostObject->getOverlappingPairCache()->getNumOverlappingPairs());
+    for (int i = 0; i < m_ghostObject->getOverlappingPairCache()->getNumOverlappingPairs(); i++)
+    {
+        m_manifoldArray.resize(0);
+
+        btBroadphasePair* collisionPair = &m_ghostObject->getOverlappingPairCache()->getOverlappingPairArray()[i];
+
+        btCollisionObject* obj0 = static_cast<btCollisionObject*>(collisionPair->m_pProxy0->m_clientObject);
+        btCollisionObject* obj1 = static_cast<btCollisionObject*>(collisionPair->m_pProxy1->m_clientObject);
+
+        // TODO: Collision-Ghosts should be set with contact response everywhere else,
+        //       except sensors/triggers!
+        if ((obj0 && !obj0->hasContactResponse()) || (obj1 && !obj1->hasContactResponse()))
+        {
+//            printf("** Nocontact\n");
+            continue;
+        }
+
+//        EngineContainer* cont0 = static_cast<EngineContainer*>(manifold->getBody0()->getUserPointer());
+//        EngineContainer* cont1 = static_cast<EngineContainer*>(manifold->getBody1()->getUserPointer());
+        EngineContainer* cont0 = static_cast<EngineContainer*>(obj0->getUserPointer());
+        EngineContainer* cont1 = static_cast<EngineContainer*>(obj1->getUserPointer());
+        if((cont0->collision_type == COLLISION_TYPE_GHOST) || (cont1->collision_type == COLLISION_TYPE_GHOST))
+        {
+//            printf("** Ghostcont\n");
+            continue;
+        }
+
+        if(cont0->object == this && cont1->object == this)
+        {
+            continue;
+        } else {
+//            printf("Obj0: coltype: %d  - cr: %d\n",cont0->collision_type, obj0->hasContactResponse());
+//            printf("Obj1: coltype: %d  - cr: %d\n",cont1->collision_type, obj1->hasContactResponse());
+        }
+
+
+
+        if (collisionPair->m_algorithm)
+            collisionPair->m_algorithm->getAllContactManifolds(m_manifoldArray);
+
+
+        for (int j=0;j<m_manifoldArray.size();j++)
+        {
+            btPersistentManifold* manifold = m_manifoldArray[j];
+            btScalar directionSign = manifold->getBody0() == m_ghostObject ? btScalar(-1.0) : btScalar(1.0);
+            for (int p=0;p<manifold->getNumContacts();p++)
+            {
+                const btManifoldPoint&pt = manifold->getContactPoint(p);
+
+                btScalar dist = pt.getDistance();
+
+                if (dist < 0.0)
+                {
+                    if (dist < maxPen)
+                    {
+                        maxPen = dist;
+                        m_touchingNormal = pt.m_normalWorldOnB * directionSign;//??
+
+                    }
+                    m_currentPosition += pt.m_normalWorldOnB * directionSign * dist * btScalar(0.2);
+                    penetration = true;
+                } else {
+                    //printf("touching %f\n", dist);
+                }
+            }
+
+            //manifold->clearManifold();
+        }
+    }
+    btTransform newTrans = m_ghostObject->getWorldTransform();
+    newTrans.setOrigin(m_currentPosition);
+    m_ghostObject->setWorldTransform(newTrans);
+//  printf("m_touchingNormal = %f,%f,%f\n",m_touchingNormal[0],m_touchingNormal[1],m_touchingNormal[2]);
+    return penetration;
+}
+
+
+
 ///@TODO: make experiment with convexSweepTest with spheres: no more iterative cycles;
 int Entity::getPenetrationFixVector(btVector3* reaction, bool hasMove)
 {
+    if(!m_bt.ghost || m_bt.no_fix_all)
+    {
+        return 0;
+    }
+
+    updateGhost();
+
+    btVector3 start_pos = m_bt.ghost->getWorldTransform().getOrigin();
+
+    int numPenetrationLoops = 0;
+    bool m_touchingContact = false;
+
+    while(recoverFromPenetration ())
+    {
+        numPenetrationLoops++;
+        m_touchingContact = true;
+        if(numPenetrationLoops > 4) // max recovery attempts
+        {
+            //printf("character could not recover from penetration = %d\n", numPenetrationLoops);
+            break;
+        }
+    }
+
+    *reaction = m_bt.ghost->getWorldTransform().getOrigin() - start_pos;
+//    m_currentPosition = m_ghostObject->getWorldTransform().getOrigin();
+//    m_targetPosition = m_currentPosition;
+//  printf("m_targetPosition=%f,%f,%f\n",m_targetPosition[0],m_targetPosition[1],m_targetPosition[2]);
+
+    if(m_touchingContact)
+    {
+//        printf("*** YES!\n");
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+
+
+#if 0
     reaction->setZero();
     if(m_bt.ghostObjects.empty() || m_bt.no_fix_all)
         return 0;
@@ -408,6 +680,7 @@ int Entity::getPenetrationFixVector(btVector3* reaction, bool hasMove)
     m_transform.setOrigin(orig_pos);
 
     return ret;
+#endif
 }
 
 void Entity::fixPenetrations(const btVector3* move)
@@ -447,7 +720,8 @@ void Entity::transferToRoom(Room* room)
 std::shared_ptr<BtEngineClosestConvexResultCallback> Entity::callbackForCamera() const
 {
     auto cb = std::make_shared<BtEngineClosestConvexResultCallback>(m_self);
-    cb->m_collisionFilterMask = btBroadphaseProxy::StaticFilter | btBroadphaseProxy::KinematicFilter;
+    cb->m_collisionFilterGroup = COLLISION_GROUP_DYNAMICS;
+    cb->m_collisionFilterMask = COLLISION_GROUP_STATIC | COLLISION_GROUP_KINEMATIC;
     return cb;
 }
 
@@ -1291,6 +1565,8 @@ Entity::~Entity()
     }
     m_bt.ghostObjects.clear();
 
+    deleteGhost();
+
     m_bt.shapes.clear();
 
     m_bt.manifoldArray.reset();
@@ -1504,7 +1780,7 @@ bool Entity::deleteRagdoll()
     {
         bt_engine_dynamicsWorld->removeRigidBody(m_bt.bt_body[i].get());
         m_bt.bt_body[i]->setMassProps(0, btVector3(0.0, 0.0, 0.0));
-        bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), COLLISION_GROUP_KINEMATIC, COLLISION_MASK_ALL);
+        bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), COLLISION_GROUP_KINEMATIC, COLLISION_GROUP_ALL);
         if(i < m_bt.ghostObjects.size() && m_bt.ghostObjects[i])
         {
             bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghostObjects[i].get());

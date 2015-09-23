@@ -1903,7 +1903,7 @@ void TR_GenRoom(size_t room_index, std::shared_ptr<Room>& room, World *world, co
                 startTransform = r_static->transform;
                 btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
                 r_static->bt_body = new btRigidBody(0.0, motionState, cshape, localInertia);
-                bt_engine_dynamicsWorld->addRigidBody(r_static->bt_body, COLLISION_GROUP_ALL, COLLISION_MASK_ALL);
+                bt_engine_dynamicsWorld->addRigidBody(r_static->bt_body, COLLISION_GROUP_STATIC, COLLISION_GROUP_ALL ^ COLLISION_GROUP_STATIC);
                 r_static->bt_body->setUserPointer(r_static->self.get());
             }
         }
@@ -2189,7 +2189,7 @@ void Res_GenRoomCollision(World *world)
             btVector3 localInertia(0, 0, 0);
             btDefaultMotionState* motionState = new btDefaultMotionState(room->transform);
             room->bt_body.reset(new btRigidBody(0.0, motionState, cshape, localInertia));
-            bt_engine_dynamicsWorld->addRigidBody(room->bt_body.get(), COLLISION_GROUP_ALL, COLLISION_MASK_ALL);
+            bt_engine_dynamicsWorld->addRigidBody(room->bt_body.get(), COLLISION_GROUP_STATIC, COLLISION_GROUP_ALL ^ COLLISION_GROUP_STATIC);
             room->bt_body->setUserPointer(room->self.get());
             room->bt_body->setRestitution(1.0);
             room->bt_body->setFriction(1.0);

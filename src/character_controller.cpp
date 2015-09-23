@@ -25,11 +25,13 @@ Character::Character(uint32_t id)
     m_climbSensor->setMargin(COLLISION_MARGIN_DEFAULT);
 
     m_rayCb = std::make_shared<BtEngineClosestRayResultCallback>(m_self, true);
-    m_rayCb->m_collisionFilterMask = btBroadphaseProxy::StaticFilter | btBroadphaseProxy::KinematicFilter;
+    m_rayCb->m_collisionFilterGroup = COLLISION_GROUP_DYNAMICS;
+    m_rayCb->m_collisionFilterMask = COLLISION_GROUP_STATIC | COLLISION_GROUP_KINEMATIC | COLLISION_GROUP_DYNAMICS;
     m_heightInfo.cb = m_rayCb;
 
     m_convexCb = std::make_shared<BtEngineClosestConvexResultCallback>(m_self, true);
-    m_convexCb->m_collisionFilterMask = btBroadphaseProxy::StaticFilter | btBroadphaseProxy::KinematicFilter;
+    m_convexCb->m_collisionFilterGroup = COLLISION_GROUP_DYNAMICS;
+    m_convexCb->m_collisionFilterMask = COLLISION_GROUP_STATIC | COLLISION_GROUP_KINEMATIC | COLLISION_GROUP_DYNAMICS;
     m_heightInfo.ccb = m_convexCb;
 
     m_dirFlag = ENT_STAY;

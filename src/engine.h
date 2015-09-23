@@ -41,9 +41,8 @@
 #define COLLISION_TYPE_GHOST                    (0x000B)     // no fix character position, but works in collision callbacks and interacts with dynamic objects
 
 #define COLLISION_NONE                          (0x0000)
-#define COLLISION_MASK_ALL                      (0x7FFF)        // bullet uses signed short int for these flags!
 
-#define COLLISION_GROUP_ALL                     (0x7FFF)
+#define COLLISION_GROUP_ALL                     (0xFFFF)
 #define COLLISION_GROUP_STATIC                  (0x0001)        // room mesh, statics
 #define COLLISION_GROUP_KINEMATIC               (0x0002)        // doors, blocks, static animated entityes
 #define COLLISION_GROUP_CHARACTERS              (0x0004)        // Lara, enemies, friends, creatures
@@ -67,8 +66,8 @@ class Camera;
 struct EngineContainer
 {
     uint16_t object_type = 0;
-    lua::Integer collision_type = COLLISION_TYPE_NONE;
-    lua::Integer collision_shape = 0;
+    int collision_type = COLLISION_TYPE_NONE;
+    int collision_shape = 0;
     Object* object = nullptr;
     Room* room = nullptr;
 };

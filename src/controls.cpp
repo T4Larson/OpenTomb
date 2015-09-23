@@ -635,15 +635,15 @@ void Controls_PrimaryMouseDown()
 
     btCollisionShape* cshape = new btSphereShape(dbgR);
     cshape->setMargin(COLLISION_MARGIN_DEFAULT);
-    //cshape = new btCapsuleShapeZ(50.0, 100.0);
     btTransform startTransform;
     startTransform.setIdentity();
     btVector3 new_pos = v;
     startTransform.setOrigin(btVector3(new_pos[0], new_pos[1], new_pos[2]));
-    cshape->calculateLocalInertia(12.0, localInertia);
+    cshape->calculateLocalInertia(12, localInertia);
     btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
     btRigidBody* body = new btRigidBody(12.0, motionState, cshape, localInertia);
-    bt_engine_dynamicsWorld->addRigidBody(body);
+    body->setDamping(0.3f,0.7f);
+    bt_engine_dynamicsWorld->addRigidBody(body, COLLISION_GROUP_DYNAMICS, COLLISION_GROUP_ALL);
     body->setLinearVelocity(btVector3(dir[0], dir[1], dir[2]) * 6000);
     cont->room = Room_FindPosCogerrence(new_pos, engine_camera.m_currentRoom);
     cont->object_type = OBJECT_BULLET_MISC;                     // bullet have to destroy this user pointer
@@ -661,7 +661,6 @@ void Controls_SecondaryMouseDown()
     cam_cont->room = engine_camera.m_currentRoom;
 
     BtEngineClosestRayResultCallback cbc(cam_cont);
-    //cbc.m_collisionFilterMask = btBroadphaseProxy::StaticFilter | btBroadphaseProxy::KinematicFilter;
     bt_engine_dynamicsWorld->rayTest(from, to, cbc);
     if(cbc.hasHit())
     {

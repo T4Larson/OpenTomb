@@ -77,14 +77,17 @@ struct BtEntityData
 {
     bool no_fix_all;
     uint32_t no_fix_body_parts;
-    std::vector<std::unique_ptr<btPairCachingGhostObject>> ghostObjects;           // like Bullet character controller for penetration resolving.
-    std::unique_ptr<btManifoldArray> manifoldArray;          // keep track of the contact manifolds
+    std::vector<std::unique_ptr<btPairCachingGhostObject>> ghostObjects;    // like Bullet character controller for penetration resolving.
+    std::unique_ptr<btManifoldArray> manifoldArray;         // (ghost) keep track of the contact manifolds
 
-    std::vector<std::unique_ptr<btCollisionShape>> shapes;
+    std::vector<std::unique_ptr<btCollisionShape>> shapes;  // ghost shapes only
     std::vector< std::shared_ptr<btRigidBody> > bt_body;
     std::vector<std::shared_ptr<btTypedConstraint>> bt_joints;              // Ragdoll joints
 
     std::vector<EntityCollisionNode> last_collisions;
+
+    std::unique_ptr<btPairCachingGhostObject> ghost;
+    int ghostType;
 };
 
 class BtEngineClosestConvexResultCallback;
@@ -168,6 +171,13 @@ public:
     ~Entity();
 
     void createGhosts();
+
+    void createGhost(int type=0);
+    void deleteGhost();
+    void updateGhost();
+
+    bool recoverFromPenetration();
+
     void enable();
     void disable();
     void enableCollision();

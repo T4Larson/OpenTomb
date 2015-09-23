@@ -403,10 +403,7 @@ struct Character : public Entity
         Entity::updateTransform();
     }
     void updateGhostRigidBody() override;
-    virtual std::shared_ptr<BtEngineClosestConvexResultCallback> callbackForCamera() const override
-    {
-        return m_convexCb;
-    }
+
     btVector3 camPosForFollowing(btScalar dz) override;
 
     int32_t addItem(uint32_t item_id, int32_t count);       // returns items count after in the function's end
