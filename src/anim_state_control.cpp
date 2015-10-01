@@ -836,22 +836,39 @@ int State_Control_Lara(Character* character, struct SSAnimation *ss_anim)
             {
                 ss_anim->next_state = TR_STATE_LARA_CROUCH_IDLE;
             }
-            else if((cmd->move[0] == 1) && !cmd->crouch && (next_fc.floor_normale[2] >= character->m_criticalSlantZComponent) && nextStep == StepType::UpBig)
+            else if((cmd->move[0] == 1)
+                    && !cmd->crouch
+                    && (next_fc.floor_normale[2] >= character->m_criticalSlantZComponent)
+                    && nextStep == StepType::UpBig
+                    && ss_anim->current_animation != 55
+                    && ss_anim->current_animation != 56)
             {
+                // FIXME: transition should happen when entpos center raises on step:
                 character->m_dirFlag = ENT_STAY;
-                i = character->getAnimDispatchCase(2);  // Select correct anim dispatch.
-                if(i == 0)
+                character->m_dirFlag = ENT_MOVE_FORWARD;
+                pos[2] = next_fc.floor_point[2];
+                if(ss_anim->current_frame < 3 || ss_anim->current_frame > 14)
                 {
                     character->setAnimation(TR_ANIMATION_LARA_RUN_UP_STEP_RIGHT, 0);
-                    pos[2] = next_fc.floor_point[2];
-                    character->m_dirFlag = ENT_MOVE_FORWARD;
                 }
-                else //if(i == 1)
+                else
                 {
                     character->setAnimation(TR_ANIMATION_LARA_RUN_UP_STEP_LEFT, 0);
-                    pos[2] = next_fc.floor_point[2];
-                    character->m_dirFlag = ENT_MOVE_FORWARD;
                 }
+//                character->m_dirFlag = ENT_STAY;
+//                i = character->getAnimDispatchCase(2);  // Select correct anim dispatch.
+//                if(i == 0)
+//                {
+//                    character->setAnimation(TR_ANIMATION_LARA_RUN_UP_STEP_RIGHT, 0);
+//                    pos[2] = next_fc.floor_point[2];
+//                    character->m_dirFlag = ENT_MOVE_FORWARD;
+//                }
+//                else //if(i == 1)
+//                {
+//                    character->setAnimation(TR_ANIMATION_LARA_RUN_UP_STEP_LEFT, 0);
+//                    pos[2] = next_fc.floor_point[2];
+//                    character->m_dirFlag = ENT_MOVE_FORWARD;
+//                }
             }
             else if(resp->horizontal_collide & 0x01)
             {

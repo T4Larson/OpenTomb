@@ -77,8 +77,6 @@ void Entity::createGhost(int ghostType)
     btCollisionShape *ghostshape = new btCylinderShapeZ({100.0f, 100.0f, 762.0f/2.0f});  // TODO: lara base values from tr4
 
 //    btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 2);
-//    btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 1);
-//    ghostshape->setLocalScaling({0.3f, 1.0f, 3.0f});
 //    ghostshape->setLocalScaling({0.3f, 0.3f, 0.3f});
 
     btTransform ghostoffs;
