@@ -86,7 +86,6 @@ void Entity::createGhost(int ghostType)
     m_bt.ghost.reset(new btPairCachingGhostObject());
 
     m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
-//    m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags()); // should have contact! ... | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     m_bt.ghost->setUserPointer(m_self.get());
     m_bt.ghost->setCollisionShape(ghostshape);
@@ -211,9 +210,9 @@ void Entity::genRigidBody()
 
                 // non-static btConvexTriangleMeshShape:
                 // FIXME: PROBLEM: may be used for a static RB below...
-//            case COLLISION_SHAPE_TRIMESH:
             case COLLISION_SHAPE_TRIMESH_CONVEX:
                 cshape = BT_CSfromMesh(mesh, true, true, false);
+//                cshape = BT_CSfromBBox(mesh->m_bbMin, mesh->m_bbMax, true, true);
                 break;
 
                 // static btBvhTriangleMeshShape:
@@ -265,7 +264,6 @@ void Entity::genRigidBody()
                     coll_with = COLLISION_GROUP_ALL;
                     // CF_CHARACTER_OBJECT is unused/deprecated
                     m_bt.bt_body.back()->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
-                    // FIXME: active RBs spoil forward wallchecks (stop-at-wall anim)
                     m_bt.bt_body.back()->setActivationState(DISABLE_DEACTIVATION);
                     break;
 
@@ -273,7 +271,7 @@ void Entity::genRigidBody()
                 default:
                     coll_group = COLLISION_GROUP_STATIC;
                     coll_with = COLLISION_GROUP_ALL;
-                    m_bt.bt_body.back()->setCollisionFlags(m_bt.bt_body.back()->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
+                    m_bt.bt_body.back()->setCollisionFlags(btCollisionObject::CF_STATIC_OBJECT);
                     break;
                 // FIXME: COLLISION_TYPE_DYNAMIC?
             }
@@ -509,7 +507,8 @@ bool Entity::recoverFromPenetration()
 
         // TODO: Collision-Ghosts should be set with contact response everywhere else,
         //       except sensors/triggers!
-        if((obj0 && !obj0->hasContactResponse()) || (obj1 && !obj1->hasContactResponse()))
+        // TODO: check depending on self...
+        if((obj0 && !obj0->hasContactResponse()) && (obj1 && !obj1->hasContactResponse()))
         {
 //            printf("** Nocontact\n");
             continue;
@@ -519,6 +518,7 @@ bool Entity::recoverFromPenetration()
 //        EngineContainer* cont1 = static_cast<EngineContainer*>(manifold->getBody1()->getUserPointer());
         EngineContainer* cont0 = static_cast<EngineContainer*>(obj0->getUserPointer());
         EngineContainer* cont1 = static_cast<EngineContainer*>(obj1->getUserPointer());
+        if(!cont0 || !cont1) continue;
         if((cont0->collision_type == COLLISION_TYPE_GHOST) || (cont1->collision_type == COLLISION_TYPE_GHOST))
         {
 //            printf("** Ghostcont\n");
