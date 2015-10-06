@@ -2187,7 +2187,7 @@ int Character::checkNextPenetration(const btVector3& move)
     }
     m_transform.getOrigin() -= move;
     ghostUpdate();
-    cleanCollisionAllBodyParts();
+//    cleanCollisionAllBodyParts();
 
     return ret;
 }

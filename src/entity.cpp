@@ -51,7 +51,7 @@ void Entity::createGhosts()
         m_bt.ghostObjects.back()->setCollisionFlags(m_bt.ghostObjects.back()->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
         m_bt.ghostObjects.back()->setUserPointer(m_self.get());
         m_bt.ghostObjects.back()->setCollisionShape(m_bt.shapes.back().get());
-        bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects.back().get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
+//        bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects.back().get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
 
         m_bt.last_collisions.emplace_back();
     }
@@ -86,7 +86,8 @@ void Entity::createGhost(int ghostType)
     m_bt.ghost.reset(new btPairCachingGhostObject());
 
     m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
-    m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags()); // should have contact! ... | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+//    m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags()); // should have contact! ... | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     m_bt.ghost->setUserPointer(m_self.get());
     m_bt.ghost->setCollisionShape(ghostshape);
     bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghost.get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
@@ -265,7 +266,7 @@ void Entity::genRigidBody()
                     // CF_CHARACTER_OBJECT is unused/deprecated
                     m_bt.bt_body.back()->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
                     // FIXME: active RBs spoil forward wallchecks (stop-at-wall anim)
-//                    m_bt.bt_body.back()->setActivationState(DISABLE_DEACTIVATION);
+                    m_bt.bt_body.back()->setActivationState(DISABLE_DEACTIVATION);
                     break;
 
                 case COLLISION_TYPE_STATIC:
@@ -278,7 +279,12 @@ void Entity::genRigidBody()
             }
 
             bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), coll_group, coll_with);
-            m_bt.bt_body.back()->setUserPointer(m_self.get());
+            // PROBLEM: this is used as comparison for entities in the near callback
+            //          where ents are equal if conts-ptr is equal, and cause slowdowns...
+            EngineContainer* cont = new EngineContainer(*m_self.get());
+            cont->mesh_index = i;
+            m_bt.bt_body.back()->setUserPointer(cont);
+//            m_bt.bt_body.back()->setUserPointer(m_self.get());
         }
     }
 }
@@ -494,10 +500,8 @@ bool Entity::recoverFromPenetration()
 
     btScalar maxPen = btScalar(0.0);
 //    printf("*** NUMPAIRS: %d\n",m_ghostObject->getOverlappingPairCache()->getNumOverlappingPairs());
-    for (int i = 0; i < m_ghostObject->getOverlappingPairCache()->getNumOverlappingPairs(); i++)
+    for(int i = 0; i < m_ghostObject->getOverlappingPairCache()->getNumOverlappingPairs(); i++)
     {
-        m_manifoldArray.resize(0);
-
         btBroadphasePair* collisionPair = &m_ghostObject->getOverlappingPairCache()->getOverlappingPairArray()[i];
 
         btCollisionObject* obj0 = static_cast<btCollisionObject*>(collisionPair->m_pProxy0->m_clientObject);
@@ -505,7 +509,7 @@ bool Entity::recoverFromPenetration()
 
         // TODO: Collision-Ghosts should be set with contact response everywhere else,
         //       except sensors/triggers!
-        if ((obj0 && !obj0->hasContactResponse()) || (obj1 && !obj1->hasContactResponse()))
+        if((obj0 && !obj0->hasContactResponse()) || (obj1 && !obj1->hasContactResponse()))
         {
 //            printf("** Nocontact\n");
             continue;
@@ -523,31 +527,34 @@ bool Entity::recoverFromPenetration()
 
         if(cont0->object == this && cont1->object == this)
         {
+//            printf("*** COLL SELF\n");
             continue;
-        } else {
+        }
+        else
+        {
 //            printf("Obj0: coltype: %d  - cr: %d\n",cont0->collision_type, obj0->hasContactResponse());
 //            printf("Obj1: coltype: %d  - cr: %d\n",cont1->collision_type, obj1->hasContactResponse());
         }
 
 
+        m_manifoldArray.resize(0);
+        if(collisionPair->m_algorithm)
+           collisionPair->m_algorithm->getAllContactManifolds(m_manifoldArray);
 
-        if (collisionPair->m_algorithm)
-            collisionPair->m_algorithm->getAllContactManifolds(m_manifoldArray);
 
-
-        for (int j=0;j<m_manifoldArray.size();j++)
+        for(int j=0;j<m_manifoldArray.size();j++)
         {
             btPersistentManifold* manifold = m_manifoldArray[j];
             btScalar directionSign = manifold->getBody0() == m_ghostObject ? btScalar(-1.0) : btScalar(1.0);
-            for (int p=0;p<manifold->getNumContacts();p++)
+            for(int p=0;p<manifold->getNumContacts();p++)
             {
                 const btManifoldPoint&pt = manifold->getContactPoint(p);
 
                 btScalar dist = pt.getDistance();
 
-                if (dist < 0.0)
+                if(dist < 0.0)
                 {
-                    if (dist < maxPen)
+                    if(dist < maxPen)
                     {
                         maxPen = dist;
                         m_touchingNormal = pt.m_normalWorldOnB * directionSign;//??
@@ -555,7 +562,9 @@ bool Entity::recoverFromPenetration()
                     }
                     m_currentPosition += pt.m_normalWorldOnB * directionSign * dist * btScalar(0.2);
                     penetration = true;
-                } else {
+                }
+                else
+                {
                     //printf("touching %f\n", dist);
                 }
             }
@@ -587,7 +596,7 @@ int Entity::getPenetrationFixVector(btVector3* reaction, bool hasMove)
     int numPenetrationLoops = 0;
     bool m_touchingContact = false;
 
-    while(recoverFromPenetration ())
+    while(recoverFromPenetration())
     {
         numPenetrationLoops++;
         m_touchingContact = true;
@@ -730,7 +739,7 @@ void Entity::checkCollisionCallbacks()
 
     btCollisionObject *cobj;
     uint32_t curr_flag;
-    updateCurrentCollisions();
+//    updateCurrentCollisions();
     while((cobj = getRemoveCollisionBodyParts(0xFFFFFFFF, &curr_flag)) != nullptr)
     {
         // do callbacks here:
@@ -759,6 +768,7 @@ void Entity::checkCollisionCallbacks()
             engine_lua.execEntity(ENTITY_CALLBACK_ROOMCOLLISION, m_id, activator->id);
         }
     }
+    cleanCollisionAllBodyParts();
 }
 
 bool Entity::wasCollisionBodyParts(uint32_t parts_flags)
@@ -1575,6 +1585,7 @@ Entity::~Entity()
         {
             if(body)
             {
+                delete static_cast<EngineContainer*>(body->getUserPointer());
                 body->setUserPointer(nullptr);
                 if(body->getMotionState())
                 {

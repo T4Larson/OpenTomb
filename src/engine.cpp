@@ -602,13 +602,11 @@ void Engine_ShowDebugInfo()
 void Engine_RoomNearCallback(btBroadphasePair& collisionPair, btCollisionDispatcher& dispatcher, const btDispatcherInfo& dispatchInfo)
 {
     EngineContainer* c0, *c1;
-
     c0 = static_cast<EngineContainer*>(static_cast<btCollisionObject*>(collisionPair.m_pProxy0->m_clientObject)->getUserPointer());
-    Room* r0 = c0 ? c0->room : nullptr;
     c1 = static_cast<EngineContainer*>(static_cast<btCollisionObject*>(collisionPair.m_pProxy1->m_clientObject)->getUserPointer());
-    Room* r1 = c1 ? c1->room : nullptr;
 
-    if(c1 && c1 == c0)
+    if(    (c1 && c1 == c0)
+        || (c0 && c1 && c0->object && c0->object == c1->object) )
     {
         if(static_cast<btCollisionObject*>(collisionPair.m_pProxy0->m_clientObject)->isStaticOrKinematicObject() ||
            static_cast<btCollisionObject*>(collisionPair.m_pProxy1->m_clientObject)->isStaticOrKinematicObject())
@@ -617,6 +615,37 @@ void Engine_RoomNearCallback(btBroadphasePair& collisionPair, btCollisionDispatc
         }
         dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
         return;
+    }
+
+    if(!c0 && !c1)
+    {
+        dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
+        return;
+    }
+
+
+
+    Room *r0, *r1;
+//    Room* r0 = c0 ? c0->room : nullptr;
+//    Room* r1 = c1 ? c1->room : nullptr;
+    if(c0->object_type == OBJECT_ENTITY)
+    {
+        Entity* ent = static_cast<Entity*>(c0->object);
+        r0 = ent->m_self->room;
+    }
+    else
+    {
+        r0 = c0->room;
+    }
+
+    if(c1->object_type == OBJECT_ENTITY)
+    {
+        Entity* ent = static_cast<Entity*>(c1->object);
+        r1 = ent->m_self->room;
+    }
+    else
+    {
+        r1 = c1->room;
     }
 
     if(!r0 && !r1)
@@ -727,6 +756,66 @@ void storeEntityLerpTransforms()
 }
 
 
+// *** Check all entity collisions from last physics step:
+// Iterate over all contact manifolds:
+void Engine_UpdateEntityCollisions()
+{
+    int numManifolds = bt_engine_dynamicsWorld->getDispatcher()->getNumManifolds();
+    for(int i = 0; i < numManifolds; i++)
+    {
+        btPersistentManifold* contactManifold =  bt_engine_dynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
+        int numContacts = contactManifold->getNumContacts();
+        if(!numContacts) continue;
+
+        // fixme: collision array should hold const*, instead of casting the constness away:
+        btCollisionObject* objA = const_cast<btCollisionObject*>(contactManifold->getBody0());
+        btCollisionObject* objB = const_cast<btCollisionObject*>(contactManifold->getBody1());
+
+        EngineContainer* contA = static_cast<EngineContainer*>(objA->getUserPointer());
+        EngineContainer* contB = static_cast<EngineContainer*>(objB->getUserPointer());
+
+        if( !contA || !contB
+            || contA->object_type != OBJECT_ENTITY
+            || contB->object_type != OBJECT_ENTITY
+            || contA->object == contB->object)
+        {
+            continue;
+        }
+        Entity* entA = static_cast<Entity*>(contA->object);
+        Entity* entB = static_cast<Entity*>(contB->object);
+        if(!entA->m_active || !entB->m_active) continue;
+
+        for(int j=0;j<numContacts;j++)
+        {
+            btManifoldPoint& pt = contactManifold->getContactPoint(j);
+            if(pt.getDistance()<0.f)
+            {
+                if( ((entA->m_typeFlags & (ENTITY_TYPE_COLLCHECK|ENTITY_TYPE_DYNAMIC)) == ENTITY_TYPE_COLLCHECK
+                        && contA->collision_type != COLLISION_TYPE_GHOST)
+                    || entA->isPlayer()
+                    )
+                {
+                    if(contA->mesh_index >= 0)
+                        entA->m_bt.last_collisions[contA->mesh_index].obj.push_back(objB);
+                }
+
+                if( ((entB->m_typeFlags & (ENTITY_TYPE_COLLCHECK|ENTITY_TYPE_DYNAMIC)) == ENTITY_TYPE_COLLCHECK
+                        && contB->collision_type != COLLISION_TYPE_GHOST)
+                    || entB->isPlayer()
+                    )
+                {
+                    if(contB->mesh_index >= 0)
+                        entB->m_bt.last_collisions[contB->mesh_index].obj.push_back(objA);
+                }
+                goto continue_manifolds;
+            }
+        }
+continue_manifolds: ;
+    }
+    return;
+}
+
+
 /**
  * Pre-physics step callback
  */
@@ -761,7 +850,10 @@ void Engine_InternalPreTickCallback(btDynamicsWorld* /* world */, btScalar timeS
  */
 void Engine_InternalTickCallback(btDynamicsWorld* world, btScalar /* timeStep */)
 {
-    // Update all physics object's transform/room:
+    // Update Entity Collisions:
+    Engine_UpdateEntityCollisions();
+
+    // Update all physics object's transform/room (OBJECT_BULLET_MISC):
     for(int i = world->getNumCollisionObjects() - 1; i >= 0; i--)
     {
         assert(i >= 0 && i < bt_engine_dynamicsWorld->getCollisionObjectArray().size());
