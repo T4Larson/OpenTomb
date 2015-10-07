@@ -601,71 +601,62 @@ void Engine_ShowDebugInfo()
  */
 void Engine_RoomNearCallback(btBroadphasePair& collisionPair, btCollisionDispatcher& dispatcher, const btDispatcherInfo& dispatchInfo)
 {
-    EngineContainer* c0, *c1;
-    c0 = static_cast<EngineContainer*>(static_cast<btCollisionObject*>(collisionPair.m_pProxy0->m_clientObject)->getUserPointer());
-    c1 = static_cast<EngineContainer*>(static_cast<btCollisionObject*>(collisionPair.m_pProxy1->m_clientObject)->getUserPointer());
+    btCollisionObject *obj0, *obj1;
+    obj0 = static_cast<btCollisionObject*>(collisionPair.m_pProxy0->m_clientObject);
+    obj1 = static_cast<btCollisionObject*>(collisionPair.m_pProxy1->m_clientObject);
 
-    if(    (c1 && c1 == c0)
-        || (c0 && c1 && c0->object && c0->object == c1->object) )
-    {
-        if(static_cast<btCollisionObject*>(collisionPair.m_pProxy0->m_clientObject)->isStaticOrKinematicObject() ||
-           static_cast<btCollisionObject*>(collisionPair.m_pProxy1->m_clientObject)->isStaticOrKinematicObject())
-        {
-            return;                                                             // No self interaction
-        }
-        dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
-        return;
-    }
+    EngineContainer *cont0, *cont1;
+    cont0 = static_cast<EngineContainer*>(obj0->getUserPointer());
+    cont1 = static_cast<EngineContainer*>(obj1->getUserPointer());
 
-    if(!c0 && !c1)
+    if(!cont0 || !cont1)    // objects w/o container
     {
-        dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
-        return;
-    }
-
-
-
-    Room *r0, *r1;
-//    Room* r0 = c0 ? c0->room : nullptr;
-//    Room* r1 = c1 ? c1->room : nullptr;
-    if(c0->object_type == OBJECT_ENTITY)
-    {
-        Entity* ent = static_cast<Entity*>(c0->object);
-        r0 = ent->m_self->room;
-    }
-    else
-    {
-        r0 = c0->room;
-    }
-
-    if(c1->object_type == OBJECT_ENTITY)
-    {
-        Entity* ent = static_cast<Entity*>(c1->object);
-        r1 = ent->m_self->room;
-    }
-    else
-    {
-        r1 = c1->room;
-    }
-
-    if(!r0 && !r1)
-    {
-        dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);// Both are out of rooms
-        return;
-    }
-
-    if(r0 && r1)
-    {
-        if(r0->isInNearRoomsList(*r1))
+        if(cont0 == cont1)
         {
             dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
-            return;
         }
-        else
-        {
-            return;
-        }
+        return;
     }
+
+    if( cont0 == cont1
+        || (cont0->object && cont0->object == cont1->object))
+    {
+        if( !obj0->isStaticOrKinematicObject()
+            && !obj1->isStaticOrKinematicObject())
+        {
+            dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
+        }
+        return;  // No self interaction
+    }
+
+
+    Room *room0, *room1;
+    if(cont0->object_type == OBJECT_ENTITY)
+    {
+        Entity* ent = static_cast<Entity*>(cont0->object);
+        room0 = ent->m_self->room;
+    }
+    else
+    {
+        room0 = cont0->room;
+    }
+
+    if(cont1->object_type == OBJECT_ENTITY)
+    {
+        Entity* ent = static_cast<Entity*>(cont1->object);
+        room1 = ent->m_self->room;
+    }
+    else
+    {
+        room1 = cont1->room;
+    }
+
+    if( (!room0 && !room1)
+        || (room0 && room1 && room0->isInNearRoomsList(*room1)))
+    {
+            dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
+    }
+    return;
 }
 
 

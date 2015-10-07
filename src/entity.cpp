@@ -483,6 +483,7 @@ bool Entity::recoverFromPenetration()
     // Do this by calling the broadphase's setAabb with the moved AABB, this will update the broadphase
     // paircache and the ghostobject's internal paircache at the same time.    /BW
 
+    // TODO: First iteration collision update after physics-step may be obsolete.
     btVector3 minAabb, maxAabb;
     m_convexShape->getAabb(m_ghostObject->getWorldTransform(), minAabb,maxAabb);
     collisionWorld->getBroadphase()->setAabb(m_ghostObject->getBroadphaseHandle(),
@@ -505,12 +506,9 @@ bool Entity::recoverFromPenetration()
         btCollisionObject* obj0 = static_cast<btCollisionObject*>(collisionPair->m_pProxy0->m_clientObject);
         btCollisionObject* obj1 = static_cast<btCollisionObject*>(collisionPair->m_pProxy1->m_clientObject);
 
-        // TODO: Collision-Ghosts should be set with contact response everywhere else,
-        //       except sensors/triggers!
         // TODO: check depending on self...
         if((obj0 && !obj0->hasContactResponse()) && (obj1 && !obj1->hasContactResponse()))
         {
-//            printf("** Nocontact\n");
             continue;
         }
 
@@ -519,15 +517,17 @@ bool Entity::recoverFromPenetration()
         EngineContainer* cont0 = static_cast<EngineContainer*>(obj0->getUserPointer());
         EngineContainer* cont1 = static_cast<EngineContainer*>(obj1->getUserPointer());
         if(!cont0 || !cont1) continue;
-        if((cont0->collision_type == COLLISION_TYPE_GHOST) || (cont1->collision_type == COLLISION_TYPE_GHOST))
+
+        if(cont0->collision_type == COLLISION_TYPE_GHOST
+           || cont1->collision_type == COLLISION_TYPE_GHOST
+           || (cont0->object == this && cont1->object == this))
         {
-//            printf("** Ghostcont\n");
             continue;
         }
 
         if(cont0->object == this && cont1->object == this)
         {
-//            printf("*** COLL SELF\n");
+//            printf("** Self collision\n");
             continue;
         }
         else
