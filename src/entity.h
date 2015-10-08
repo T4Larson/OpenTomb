@@ -76,8 +76,8 @@ struct EntityCollisionNode
 struct BtEntityData
 {
     bool no_fix_all;
-    uint32_t no_fix_body_parts;
-    std::vector<std::unique_ptr<btPairCachingGhostObject>> ghostObjects;    // like Bullet character controller for penetration resolving.
+    uint32_t no_fix_body_parts; // TODO: obsolete
+
     std::unique_ptr<btManifoldArray> manifoldArray;         // (ghost) keep track of the contact manifolds
 
     std::vector<std::unique_ptr<btCollisionShape>> shapes;  // ghost shapes only
@@ -254,9 +254,7 @@ public:
     virtual void kill()
     {
     }
-    virtual void updateGhostRigidBody()
-    {
-    }
+
     virtual std::shared_ptr<BtEngineClosestConvexResultCallback> callbackForCamera() const;
 
     virtual btVector3 camPosForFollowing(btScalar dz)

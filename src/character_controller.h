@@ -402,7 +402,6 @@ struct Character : public Entity
         ghostUpdate();
         Entity::updateTransform();
     }
-    void updateGhostRigidBody() override;
 
     btVector3 camPosForFollowing(btScalar dz) override;
 

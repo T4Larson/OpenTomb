@@ -25,38 +25,38 @@
 
 void Entity::createGhosts()
 {
+#if 0
     if(!m_bf.animations.model || m_bf.animations.model->mesh_count <= 0)
         return;
 
     m_bt.manifoldArray.reset(new btManifoldArray());
+
     m_bt.shapes.clear();
-    m_bt.ghostObjects.clear();
-    m_bt.last_collisions.clear();
+
+    btCompoundShape* cshape = new btCompoundShape();
+
+    m_bt.ghost.reset(new btPairCachingGhostObject());
     for(size_t i = 0; i < m_bf.bone_tags.size(); i++)
     {
         btVector3 box = COLLISION_GHOST_VOLUME_COEFFICIENT * (m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin);
+//        btVector3 box = m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin;
         m_bt.shapes.emplace_back(new btBoxShape(box));
         m_bt.shapes.back()->setMargin(COLLISION_MARGIN_DEFAULT);
-        m_bf.bone_tags[i].mesh_base->m_radius = btMin(btMin(box.x(), box.y()), box.z());
 
-        m_bt.ghostObjects.emplace_back(new btPairCachingGhostObject());
+        btTransform tr = m_bf.bone_tags[i].full_transform;
+        tr.setOrigin(tr * m_bf.bone_tags[i].mesh_base->m_center);
 
-        m_bt.ghostObjects.back()->setIgnoreCollisionCheck(m_bt.bt_body[i].get(), true);
-
-        btTransform gltr = m_transform * m_bf.bone_tags[i].full_transform;
-        gltr.setOrigin(gltr * m_bf.bone_tags[i].mesh_base->m_center);
-
-        m_bt.ghostObjects.back()->setWorldTransform(gltr);
-//        m_bt.ghostObjects.back()->setCollisionFlags(m_bt.ghostObjects.back()->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE | btCollisionObject::CF_CHARACTER_OBJECT);
-        m_bt.ghostObjects.back()->setCollisionFlags(m_bt.ghostObjects.back()->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
-        m_bt.ghostObjects.back()->setUserPointer(m_self.get());
-        m_bt.ghostObjects.back()->setCollisionShape(m_bt.shapes.back().get());
-//        bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects.back().get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
-
-        m_bt.last_collisions.emplace_back();
+        cshape->addChildShape(tr, m_bt.shapes.back().get());
     }
-
+    m_bt.ghost->setWorldTransform(m_transform);
+    m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    m_bt.ghost->setUserPointer(m_self.get());
+    m_bt.ghost->setCollisionShape(cshape);
+    bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghost.get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
+#else
+    m_bt.manifoldArray.reset(new btManifoldArray());
     createGhost();
+#endif
 }
 
 //btVector3 g_mss_positions[2] = {
@@ -100,6 +100,7 @@ void Entity::deleteGhost()
         delete(ghostshape);
         m_bt.ghost.reset();
     }
+    m_bt.shapes.clear();
 }
 void Entity::updateGhost()
 {
@@ -137,6 +138,28 @@ void Entity::updateGhost()
         m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
     }
 }
+
+void Entity::ghostUpdate()
+{
+#if 0
+    if(m_bt.shapes.empty())
+        return;
+
+    btCompoundShape* cshape = (btCompoundShape*)m_bt.ghost->getCollisionShape();
+
+    for(uint16_t i = 0; i < m_bf.bone_tags.size(); i++)
+    {
+        btTransform tr = m_bf.bone_tags[i].full_transform;
+        tr.setOrigin(tr * m_bf.bone_tags[i].mesh_base->m_center);
+        cshape->updateChildTransform(i, tr);
+    }
+    m_bt.ghost->setWorldTransform(m_transform);
+
+#else
+    updateGhost();
+#endif
+}
+
 
 
 
@@ -197,6 +220,7 @@ void Entity::genRigidBody()
         return;
 
     m_bt.bt_body.clear();
+    m_bt.last_collisions.resize(m_bf.bone_tags.size());
 
     for(uint16_t i = 0; i < m_bf.bone_tags.size(); i++)
     {
@@ -358,120 +382,23 @@ int Ghost_GetPenetrationFixVector(btPairCachingGhostObject *ghost, btManifoldArr
     return ret;
 }
 
-void Entity::ghostUpdate()
-{
-    if(m_bt.ghostObjects.empty())
-        return;
-
-    assert(m_bt.ghostObjects.size() == m_bf.bone_tags.size());
-
-    if(m_typeFlags & ENTITY_TYPE_DYNAMIC)
-    {
-        for(size_t i = 0; i < m_bf.bone_tags.size(); i++)
-        {
-            auto tr = m_transform * m_bf.bone_tags[i].full_transform;
-            auto v = m_bf.animations.model->mesh_tree[i].mesh_base->m_center;
-            m_bt.ghostObjects[i]->getWorldTransform() = tr;
-            auto pos = tr * v;
-            m_bt.ghostObjects[i]->getWorldTransform().setOrigin(pos);
-        }
-    }
-    else
-    {
-        for(uint16_t i = 0; i < m_bf.bone_tags.size(); i++)
-        {
-            auto tr = m_bt.bt_body[i]->getWorldTransform();
-            tr.setOrigin(tr * m_bf.bone_tags[i].mesh_base->m_center);
-            m_bt.ghostObjects[i]->getWorldTransform() = tr;
-        }
-    }
-
-    updateGhost();
-}
-
-void Entity::updateCurrentCollisions()
-{
-    if(m_bt.ghostObjects.empty())
-        return;
-
-    assert(m_bt.ghostObjects.size() == m_bf.bone_tags.size());
-
-    for(size_t i = 0; i < m_bf.bone_tags.size(); i++)
-    {
-        const std::unique_ptr<btPairCachingGhostObject>& ghost = m_bt.ghostObjects[i];
-        EntityCollisionNode& cn = m_bt.last_collisions[i];
-
-        cn.obj.clear();
-        auto tr = m_transform * m_bf.bone_tags[i].full_transform;
-        auto v = m_bf.animations.model->mesh_tree[i].mesh_base->m_center;
-        auto orig_tr = ghost->getWorldTransform();
-        ghost->getWorldTransform() = tr;
-        auto pos = tr * v;
-        ghost->getWorldTransform().setOrigin(pos);
-
-        btBroadphasePairArray &pairArray = ghost->getOverlappingPairCache()->getOverlappingPairArray();
-        btVector3 aabb_min, aabb_max;
-
-        ghost->getCollisionShape()->getAabb(ghost->getWorldTransform(), aabb_min, aabb_max);
-        bt_engine_dynamicsWorld->getBroadphase()->setAabb(ghost->getBroadphaseHandle(), aabb_min, aabb_max, bt_engine_dynamicsWorld->getDispatcher());
-        bt_engine_dynamicsWorld->getDispatcher()->dispatchAllCollisionPairs(ghost->getOverlappingPairCache(), bt_engine_dynamicsWorld->getDispatchInfo(), bt_engine_dynamicsWorld->getDispatcher());
-
-        int num_pairs = ghost->getOverlappingPairCache()->getNumOverlappingPairs();
-        for(int j = 0; j < num_pairs; j++)
-        {
-            m_bt.manifoldArray->clear();
-            btBroadphasePair *collisionPair = &pairArray[j];
-
-            if(!collisionPair)
-            {
-                continue;
-            }
-
-            if(collisionPair->m_algorithm)
-            {
-                collisionPair->m_algorithm->getAllContactManifolds(*m_bt.manifoldArray);
-            }
-
-            for(int k = 0; k < m_bt.manifoldArray->size(); k++)
-            {
-                btPersistentManifold* manifold = (*m_bt.manifoldArray)[k];
-                for(int c = 0; c < manifold->getNumContacts(); c++)
-                {
-                    if(manifold->getContactPoint(c).getDistance() < 0.0)
-                    {
-                        cn.obj.emplace_back();
-                        cn.obj.back() = const_cast<btCollisionObject*>((*m_bt.manifoldArray)[k]->getBody0());
-                        if(m_self.get() == static_cast<EngineContainer*>(cn.obj.back()->getUserPointer()))
-                        {
-                            cn.obj.back() = const_cast<btCollisionObject*>((*m_bt.manifoldArray)[k]->getBody1());
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        ghost->setWorldTransform(orig_tr);
-    }
-}
 
 
 
 
 // ====================================================
 
-btManifoldArray m_manifoldArray;
 
 bool Entity::recoverFromPenetration()
 {
     btCollisionWorld* collisionWorld = bt_engine_dynamicsWorld;
 
-    btPairCachingGhostObject* m_ghostObject = m_bt.ghost.get();
-//    btConvexShape* m_convexShape = m_bt.ghost->getCollisionShape();
-    btCollisionShape* m_convexShape = m_bt.ghost->getCollisionShape();
+    btManifoldArray& manifoldArray = *m_bt.manifoldArray.get();
+    btPairCachingGhostObject* ghostObject = m_bt.ghost.get();
+    btCollisionShape* convexShape = m_bt.ghost->getCollisionShape();
 
-    btVector3 m_currentPosition;
-
-    btVector3 m_touchingNormal;
+    btVector3 currentPosition;
+    btVector3 touchingNormal;
 
 //    btManifoldArray m_manifoldArray = m_bt.manifoldArray.get();
 
@@ -485,23 +412,21 @@ bool Entity::recoverFromPenetration()
 
     // TODO: First iteration collision update after physics-step may be obsolete.
     btVector3 minAabb, maxAabb;
-    m_convexShape->getAabb(m_ghostObject->getWorldTransform(), minAabb,maxAabb);
-    collisionWorld->getBroadphase()->setAabb(m_ghostObject->getBroadphaseHandle(),
+    convexShape->getAabb(ghostObject->getWorldTransform(), minAabb,maxAabb);
+    collisionWorld->getBroadphase()->setAabb(ghostObject->getBroadphaseHandle(),
                          minAabb,
                          maxAabb,
                          collisionWorld->getDispatcher());
 
+    collisionWorld->getDispatcher()->dispatchAllCollisionPairs(ghostObject->getOverlappingPairCache(), collisionWorld->getDispatchInfo(), collisionWorld->getDispatcher());
+
+    currentPosition = ghostObject->getWorldTransform().getOrigin();
+
     bool penetration = false;
-
-    collisionWorld->getDispatcher()->dispatchAllCollisionPairs(m_ghostObject->getOverlappingPairCache(), collisionWorld->getDispatchInfo(), collisionWorld->getDispatcher());
-
-    m_currentPosition = m_ghostObject->getWorldTransform().getOrigin();
-
     btScalar maxPen = btScalar(0.0);
-//    printf("*** NUMPAIRS: %d\n",m_ghostObject->getOverlappingPairCache()->getNumOverlappingPairs());
-    for(int i = 0; i < m_ghostObject->getOverlappingPairCache()->getNumOverlappingPairs(); i++)
+    for(int i = 0; i < ghostObject->getOverlappingPairCache()->getNumOverlappingPairs(); i++)
     {
-        btBroadphasePair* collisionPair = &m_ghostObject->getOverlappingPairCache()->getOverlappingPairArray()[i];
+        btBroadphasePair* collisionPair = &ghostObject->getOverlappingPairCache()->getOverlappingPairArray()[i];
 
         btCollisionObject* obj0 = static_cast<btCollisionObject*>(collisionPair->m_pProxy0->m_clientObject);
         btCollisionObject* obj1 = static_cast<btCollisionObject*>(collisionPair->m_pProxy1->m_clientObject);
@@ -512,8 +437,6 @@ bool Entity::recoverFromPenetration()
             continue;
         }
 
-//        EngineContainer* cont0 = static_cast<EngineContainer*>(manifold->getBody0()->getUserPointer());
-//        EngineContainer* cont1 = static_cast<EngineContainer*>(manifold->getBody1()->getUserPointer());
         EngineContainer* cont0 = static_cast<EngineContainer*>(obj0->getUserPointer());
         EngineContainer* cont1 = static_cast<EngineContainer*>(obj1->getUserPointer());
         if(!cont0 || !cont1) continue;
@@ -530,22 +453,15 @@ bool Entity::recoverFromPenetration()
 //            printf("** Self collision\n");
             continue;
         }
-        else
-        {
-//            printf("Obj0: coltype: %d  - cr: %d\n",cont0->collision_type, obj0->hasContactResponse());
-//            printf("Obj1: coltype: %d  - cr: %d\n",cont1->collision_type, obj1->hasContactResponse());
-        }
 
-
-        m_manifoldArray.resize(0);
+        manifoldArray.resize(0);
         if(collisionPair->m_algorithm)
-           collisionPair->m_algorithm->getAllContactManifolds(m_manifoldArray);
+           collisionPair->m_algorithm->getAllContactManifolds(manifoldArray);
 
-
-        for(int j=0;j<m_manifoldArray.size();j++)
+        for(int j=0;j<manifoldArray.size();j++)
         {
-            btPersistentManifold* manifold = m_manifoldArray[j];
-            btScalar directionSign = manifold->getBody0() == m_ghostObject ? btScalar(-1.0) : btScalar(1.0);
+            btPersistentManifold* manifold = manifoldArray[j];
+            btScalar directionSign = manifold->getBody0() == ghostObject ? btScalar(-1.0) : btScalar(1.0);
             for(int p=0;p<manifold->getNumContacts();p++)
             {
                 const btManifoldPoint&pt = manifold->getContactPoint(p);
@@ -557,10 +473,10 @@ bool Entity::recoverFromPenetration()
                     if(dist < maxPen)
                     {
                         maxPen = dist;
-                        m_touchingNormal = pt.m_normalWorldOnB * directionSign;//??
+                        touchingNormal = pt.m_normalWorldOnB * directionSign;//??
 
                     }
-                    m_currentPosition += pt.m_normalWorldOnB * directionSign * dist * btScalar(0.2);
+                    currentPosition += pt.m_normalWorldOnB * directionSign * dist * btScalar(0.2);
                     penetration = true;
                 }
                 else
@@ -568,14 +484,12 @@ bool Entity::recoverFromPenetration()
                     //printf("touching %f\n", dist);
                 }
             }
-
-            //manifold->clearManifold();
         }
     }
-    btTransform newTrans = m_ghostObject->getWorldTransform();
-    newTrans.setOrigin(m_currentPosition);
-    m_ghostObject->setWorldTransform(newTrans);
-//  printf("m_touchingNormal = %f,%f,%f\n",m_touchingNormal[0],m_touchingNormal[1],m_touchingNormal[2]);
+    btTransform newTrans = ghostObject->getWorldTransform();
+    newTrans.setOrigin(currentPosition);
+    ghostObject->setWorldTransform(newTrans);
+
     return penetration;
 }
 
@@ -589,17 +503,17 @@ int Entity::getPenetrationFixVector(btVector3* reaction, bool hasMove)
         return 0;
     }
 
-    updateGhost();
+    ghostUpdate();
 
     btVector3 start_pos = m_bt.ghost->getWorldTransform().getOrigin();
 
     int numPenetrationLoops = 0;
-    bool m_touchingContact = false;
+    bool touchingContact = false;
 
     while(recoverFromPenetration())
     {
         numPenetrationLoops++;
-        m_touchingContact = true;
+        touchingContact = true;
         if(numPenetrationLoops > 4) // max recovery attempts
         {
             //printf("character could not recover from penetration = %d\n", numPenetrationLoops);
@@ -608,19 +522,8 @@ int Entity::getPenetrationFixVector(btVector3* reaction, bool hasMove)
     }
 
     *reaction = m_bt.ghost->getWorldTransform().getOrigin() - start_pos;
-//    m_currentPosition = m_ghostObject->getWorldTransform().getOrigin();
-//    m_targetPosition = m_currentPosition;
-//  printf("m_targetPosition=%f,%f,%f\n",m_targetPosition[0],m_targetPosition[1],m_targetPosition[2]);
 
-    if(m_touchingContact)
-    {
-//        printf("*** YES!\n");
-        return 1;
-    }
-    else
-    {
-        return 0;
-    }
+    return touchingContact;
 
 
 #if 0
@@ -692,7 +595,7 @@ int Entity::getPenetrationFixVector(btVector3* reaction, bool hasMove)
 
 void Entity::fixPenetrations(const btVector3* move)
 {
-    if(m_bt.ghostObjects.empty())
+    if(!m_bt.ghost)
         return;
 
     if(m_typeFlags & ENTITY_TYPE_DYNAMIC)
@@ -734,12 +637,12 @@ std::shared_ptr<BtEngineClosestConvexResultCallback> Entity::callbackForCamera()
 
 void Entity::checkCollisionCallbacks()
 {
-    if(m_bt.ghostObjects.empty())
+    if(m_bt.bt_body.empty())
         return;
 
     btCollisionObject *cobj;
     uint32_t curr_flag;
-//    updateCurrentCollisions();
+
     while((cobj = getRemoveCollisionBodyParts(0xFFFFFFFF, &curr_flag)) != nullptr)
     {
         // do callbacks here:
@@ -890,8 +793,6 @@ void Entity::updateRigidBody(bool force)
                 m_bf.bone_tags[i].transform = m_bf.bone_tags[i].full_transform;
             }
         }
-
-        updateGhostRigidBody();
 
         if(m_bf.bone_tags.size() == 1)
         {
@@ -1530,7 +1431,6 @@ Entity::Entity(uint32_t id)
     m_bt.no_fix_body_parts = 0x00000000;
     m_bt.manifoldArray = nullptr;
     m_bt.shapes.clear();
-    m_bt.ghostObjects.clear();
     m_bt.last_collisions.clear();
 
     m_bf.animations.model = nullptr;
@@ -1566,16 +1466,7 @@ Entity::~Entity()
         deleteRagdoll();
     }
 
-    for(std::unique_ptr<btPairCachingGhostObject>& ghost : m_bt.ghostObjects)
-    {
-        ghost->setUserPointer(nullptr);
-        bt_engine_dynamicsWorld->removeCollisionObject(ghost.get());
-    }
-    m_bt.ghostObjects.clear();
-
     deleteGhost();
-
-    m_bt.shapes.clear();
 
     m_bt.manifoldArray.reset();
 
@@ -1689,11 +1580,11 @@ bool Entity::createRagdoll(RDSetup* setup)
         bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get());
         m_bt.bt_body[i]->activate();
         m_bt.bt_body[i]->setLinearVelocity(m_speed);
-        if(i < m_bt.ghostObjects.size() && m_bt.ghostObjects[i])
-        {
-            bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghostObjects[i].get());
-            bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects[i].get(), COLLISION_NONE, COLLISION_NONE);
-        }
+//        if(i < m_bt.ghostObjects.size() && m_bt.ghostObjects[i])
+//        {
+//            bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghostObjects[i].get());
+//            bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects[i].get(), COLLISION_NONE, COLLISION_NONE);
+//        }
     }
 
     // Setup constraints.
@@ -1790,11 +1681,11 @@ bool Entity::deleteRagdoll()
         bt_engine_dynamicsWorld->removeRigidBody(m_bt.bt_body[i].get());
         m_bt.bt_body[i]->setMassProps(0, btVector3(0.0, 0.0, 0.0));
         bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), COLLISION_GROUP_KINEMATIC, COLLISION_GROUP_ALL);
-        if(i < m_bt.ghostObjects.size() && m_bt.ghostObjects[i])
-        {
-            bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghostObjects[i].get());
-            bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects[i].get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
-        }
+//        if(i < m_bt.ghostObjects.size() && m_bt.ghostObjects[i])
+//        {
+//            bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghostObjects[i].get());
+//            bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghostObjects[i].get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
+//        }
     }
 
     m_bt.bt_joints.clear();
