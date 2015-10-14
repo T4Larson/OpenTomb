@@ -618,8 +618,7 @@ void Engine_RoomNearCallback(btBroadphasePair& collisionPair, btCollisionDispatc
         return;
     }
 
-    if( cont0 == cont1
-        || (cont0->object && cont0->object == cont1->object))
+    if(cont0 == cont1)
     {
         if( !obj0->isStaticOrKinematicObject()
             && !obj1->isStaticOrKinematicObject())
@@ -629,28 +628,9 @@ void Engine_RoomNearCallback(btBroadphasePair& collisionPair, btCollisionDispatc
         return;  // No self interaction
     }
 
-
     Room *room0, *room1;
-    if(cont0->object_type == OBJECT_ENTITY)
-    {
-        Entity* ent = static_cast<Entity*>(cont0->object);
-        room0 = ent->m_self->room;
-    }
-    else
-    {
-        room0 = cont0->room;
-    }
-
-    if(cont1->object_type == OBJECT_ENTITY)
-    {
-        Entity* ent = static_cast<Entity*>(cont1->object);
-        room1 = ent->m_self->room;
-    }
-    else
-    {
-        room1 = cont1->room;
-    }
-
+    room0 = cont0->room;
+    room1 = cont1->room;
     if( (!room0 && !room1)
         || (room0 && room1 && room0->isInNearRoomsList(*room1)))
     {
@@ -786,8 +766,9 @@ void Engine_UpdateEntityCollisions()
                     || entA->isPlayer()
                     )
                 {
-                    if(contA->mesh_index >= 0)
-                        entA->m_bt.last_collisions[contA->mesh_index].obj.push_back(objB);
+                    int idx = objA->getUserIndex();
+                    if(idx >= 0)
+                        entA->m_bt.last_collisions[idx].obj.push_back(objB);
                 }
 
                 if( ((entB->m_typeFlags & (ENTITY_TYPE_COLLCHECK|ENTITY_TYPE_DYNAMIC)) == ENTITY_TYPE_COLLCHECK
@@ -795,8 +776,9 @@ void Engine_UpdateEntityCollisions()
                     || entB->isPlayer()
                     )
                 {
-                    if(contB->mesh_index >= 0)
-                        entB->m_bt.last_collisions[contB->mesh_index].obj.push_back(objA);
+                    int idx = objB->getUserIndex();
+                    if(idx >= 0)
+                        entB->m_bt.last_collisions[idx].obj.push_back(objA);
                 }
                 goto continue_manifolds;
             }

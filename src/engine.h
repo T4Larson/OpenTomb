@@ -70,7 +70,6 @@ struct EngineContainer
     int collision_shape = 0;
     Object* object = nullptr;
     Room* room = nullptr;
-    int mesh_index = -1; // TODO: used multipartobject for all bodies, makes filtering much easier
 };
 
 //! @todo Use bools where appropriate.

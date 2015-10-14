@@ -96,8 +96,7 @@ void Entity::deleteGhost()
     if(m_bt.ghost)
     {
         bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghost.get());
-        btCollisionShape *ghostshape = m_bt.ghost->getCollisionShape();
-        delete(ghostshape);
+        delete m_bt.ghost->getCollisionShape();
         m_bt.ghost.reset();
     }
     m_bt.shapes.clear();
@@ -301,12 +300,8 @@ void Entity::genRigidBody()
             }
 
             bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), coll_group, coll_with);
-            // PROBLEM: this is used as comparison for entities in the near callback
-            //          where ents are equal if conts-ptr is equal, and cause slowdowns...
-            EngineContainer* cont = new EngineContainer(*m_self.get());
-            cont->mesh_index = i;
-            m_bt.bt_body.back()->setUserPointer(cont);
-//            m_bt.bt_body.back()->setUserPointer(m_self.get());
+            m_bt.bt_body.back()->setUserIndex(i);
+            m_bt.bt_body.back()->setUserPointer(m_self.get());
         }
     }
 }
@@ -1476,23 +1471,15 @@ Entity::~Entity()
         {
             if(body)
             {
-                delete static_cast<EngineContainer*>(body->getUserPointer());
-                body->setUserPointer(nullptr);
-                if(body->getMotionState())
-                {
-                    delete body->getMotionState();
-                    body->setMotionState(nullptr);
-                }
-                body->setCollisionShape(nullptr);
-
                 bt_engine_dynamicsWorld->removeRigidBody(body.get());
+                delete body->getMotionState();
+                delete body->getCollisionShape();
             }
         }
         m_bt.bt_body.clear();
     }
 
     m_self.reset();
-
     m_bf.bone_tags.clear();
 
     for(SSAnimation* ss_anim = m_bf.animations.next; ss_anim != nullptr;)

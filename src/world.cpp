@@ -40,15 +40,9 @@ void Room::empty()
         {
             if(btRigidBody* body = static_mesh[i]->bt_body)
             {
-                body->setUserPointer(nullptr);
-                if(body->getMotionState())
-                {
-                    delete body->getMotionState();
-                    body->setMotionState(nullptr);
-                }
-                body->setCollisionShape(nullptr);
-
                 bt_engine_dynamicsWorld->removeRigidBody(body);
+                delete body->getMotionState();
+                delete body->getCollisionShape();
                 delete body;
                 static_mesh[i]->bt_body = nullptr;
             }
@@ -64,19 +58,9 @@ void Room::empty()
 
     if(bt_body)
     {
-        bt_body->setUserPointer(nullptr);
-        if(bt_body->getMotionState())
-        {
-            delete bt_body->getMotionState();
-            bt_body->setMotionState(nullptr);
-        }
-        if(bt_body->getCollisionShape())
-        {
-            delete bt_body->getCollisionShape();
-            bt_body->setCollisionShape(nullptr);
-        }
-
         bt_engine_dynamicsWorld->removeRigidBody(bt_body.get());
+        delete bt_body->getMotionState();   // FIXME: why do rooms have a motionstate?
+        delete bt_body->getCollisionShape();
         bt_body.reset();
     }
 

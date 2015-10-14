@@ -81,6 +81,7 @@ struct BtEntityData
     std::unique_ptr<btManifoldArray> manifoldArray;         // (ghost) keep track of the contact manifolds
 
     std::vector<std::unique_ptr<btCollisionShape>> shapes;  // ghost shapes only
+
     std::vector< std::shared_ptr<btRigidBody> > bt_body;
     std::vector<std::shared_ptr<btTypedConstraint>> bt_joints;              // Ragdoll joints
 
