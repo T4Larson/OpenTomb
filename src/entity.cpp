@@ -25,66 +25,55 @@
 
 void Entity::createGhosts()
 {
-#if 0
-    if(!m_bf.animations.model || m_bf.animations.model->mesh_count <= 0)
-        return;
-
-    m_bt.manifoldArray.reset(new btManifoldArray());
-
-    m_bt.shapes.clear();
-
-    btCompoundShape* cshape = new btCompoundShape();
-
-    m_bt.ghost.reset(new btPairCachingGhostObject());
-    for(size_t i = 0; i < m_bf.bone_tags.size(); i++)
-    {
-        btVector3 box = COLLISION_GHOST_VOLUME_COEFFICIENT * (m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin);
-//        btVector3 box = m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin;
-        m_bt.shapes.emplace_back(new btBoxShape(box));
-        m_bt.shapes.back()->setMargin(COLLISION_MARGIN_DEFAULT);
-
-        btTransform tr = m_bf.bone_tags[i].full_transform;
-        tr.setOrigin(tr * m_bf.bone_tags[i].mesh_base->m_center);
-
-        cshape->addChildShape(tr, m_bt.shapes.back().get());
-    }
-    m_bt.ghost->setWorldTransform(m_transform);
-    m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
-    m_bt.ghost->setUserPointer(m_self.get());
-    m_bt.ghost->setCollisionShape(cshape);
-    bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghost.get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
-#else
-    m_bt.manifoldArray.reset(new btManifoldArray());
-    createGhost();
-#endif
+    createGhost(0);
 }
 
-//btVector3 g_mss_positions[2] = {
-//        {0,0,0},
-//        {0,0,800}
-//};
-//btScalar g_mss_radii[2] = {
-//        200,
-//        100
-//};
 void Entity::createGhost(int ghostType)
 {
     if(m_bt.ghost || !m_bf.animations.model || m_bf.animations.model->mesh_count <= 0)
         return;
 
-//    btVector3 box = COLLISION_GHOST_VOLUME_COEFFICIENT * (m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin);
-//    btCollisionShape *ghostshape = new btCapsuleShapeZ(100,762 - 2*100);  // TODO: lara base values from tr4
-    btCollisionShape *ghostshape = new btCylinderShapeZ({100.0f, 100.0f, 762.0f/2.0f});  // TODO: lara base values from tr4
+    m_bt.manifoldArray.reset(new btManifoldArray());
+    m_bt.shapes.clear();
 
-//    btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 2);
-//    ghostshape->setLocalScaling({0.3f, 0.3f, 0.3f});
-
+    btCollisionShape *ghostshape;
     btTransform ghostoffs;
     ghostoffs.setIdentity();
-    ghostoffs.setOrigin({0,0,762.0f/2.0f - 100.0f/2.0f});
+
+    m_bt.ghostType = ghostType;
+    switch(ghostType)
+    {
+        case 0:     // simple collision shape:
+        default:
+//            ghostshape = new btCapsuleShapeZ(100,762 - 2*100);  // TODO: lara base values from tr4
+            ghostshape = new btCylinderShapeZ({100.0f, 100.0f, 762.0f/2.0f});  // TODO: lara base values from tr4
+
+//            btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 2);
+//            ghostshape->setLocalScaling({0.3f, 0.3f, 0.3f});
+
+            ghostoffs.setOrigin({0,0,762.0f/2.0f - 100.0f/2.0f});
+            break;
+
+        case 1:     // compound object representing actual bone pose:
+            btCompoundShape* cshape = new btCompoundShape();
+
+            for(size_t i = 0; i < m_bf.bone_tags.size(); i++)
+            {
+                btVector3 box = COLLISION_GHOST_VOLUME_COEFFICIENT * (m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin);
+//                btVector3 box = m_bf.bone_tags[i].mesh_base->m_bbMax - m_bf.bone_tags[i].mesh_base->m_bbMin;
+                m_bt.shapes.emplace_back(new btBoxShape(box));
+                m_bt.shapes.back()->setMargin(COLLISION_MARGIN_DEFAULT);
+
+                btTransform tr = m_bf.bone_tags[i].full_transform;
+                tr.setOrigin(tr * m_bf.bone_tags[i].mesh_base->m_center);
+
+                cshape->addChildShape(tr, m_bt.shapes.back().get());
+            }
+            ghostshape = cshape;
+            break;
+    }
 
     m_bt.ghost.reset(new btPairCachingGhostObject());
-
     m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
     m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     m_bt.ghost->setUserPointer(m_self.get());
@@ -103,60 +92,79 @@ void Entity::deleteGhost()
 }
 void Entity::updateGhost()
 {
-    btScalar lowHeight = 384.0f;
-    btScalar topHeight = 762.0f;
-    btScalar radius = 100.0f;
-
-    btScalar gshape_radius = 100.0f;
-//    btScalar gshape_height = 762.0f - 2.0f * gshape_radius;
-
-    btScalar gshape_height = 762.0f/2.0f;
-
-    // capsule localScaling scales radius, too:
-    // total capsule height = height + 2*radius
-    // -> when radius is adjusted, also need to adjust height (if caps-top should be height)
-    if(m_bt.ghost)  // FIXME: is this ever called before createGhosts() ???
+    if(!m_bt.ghost)
     {
-        btScalar rad_scale = radius / gshape_radius;
+        return;
+    }
 
-//        btScalar newHeight = topHeight - lowHeight - 2.0f*radius;
-//        if(newHeight < 0.0f) newHeight = 0.001f;    // fixme: need squashed?
+    switch(m_bt.ghostType)
+    {
+        case 0:
+        default:
+        {
+            btScalar lowHeight = 384.0f;
+            btScalar topHeight = 762.0f;
+            btScalar radius = 100.0f;
+
+            btScalar gshape_radius = 100.0f;
+//            btScalar gshape_height = 762.0f - 2.0f * gshape_radius;
+
+            btScalar gshape_height = 762.0f/2.0f;
+
+            // capsule localScaling scales radius, too:
+            // total capsule height = height + 2*radius
+            // -> when radius is adjusted, also need to adjust height (if caps-top should be height)
+            btScalar rad_scale = radius / gshape_radius;
+
+//            btScalar newHeight = topHeight - lowHeight - 2.0f*radius;
+//            if(newHeight < 0.0f) newHeight = 0.001f;    // fixme: need squashed?
 //
-//        btScalar height_scale = newHeight / gshape_height;
-//        btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
+//            btScalar height_scale = newHeight / gshape_height;
+//            btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
 
 
-        btScalar newHeight = topHeight - lowHeight;
-        btScalar height_scale = newHeight / gshape_height;
-        btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
+            btScalar newHeight = topHeight - lowHeight;
+            btScalar height_scale = newHeight / gshape_height;
+            btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
 
-        m_bt.ghost->getCollisionShape()->setLocalScaling({rad_scale, rad_scale, height_scale/2.0f});
-        btTransform ghostoffs;
-        ghostoffs.setIdentity();
-        ghostoffs.setOrigin({0,0, height_ofs});
-        m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
+            m_bt.ghost->getCollisionShape()->setLocalScaling({rad_scale, rad_scale, height_scale/2.0f});
+            btTransform ghostoffs;
+            ghostoffs.setIdentity();
+            ghostoffs.setOrigin({0,0, height_ofs});
+            m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
+            break;
+        }
+
+        case 1:
+            if(m_bt.shapes.empty())
+                return;
+
+            btCompoundShape* cshape = (btCompoundShape*)m_bt.ghost->getCollisionShape();
+
+            for(uint16_t i = 0; i < m_bf.bone_tags.size(); i++)
+            {
+                btTransform tr = m_bf.bone_tags[i].full_transform;
+                tr.setOrigin(tr * m_bf.bone_tags[i].mesh_base->m_center);
+                // FIXME: scaling is unstable, 0-size will collapse...
+//                if((1<<i) & m_bt.no_fix_body_parts)
+//                {
+//                    cshape->getChildShape(i)->setLocalScaling({0,0,0});
+//                }
+//                else
+//                {
+//                    cshape->getChildShape(i)->setLocalScaling({1,1,1});
+//                }
+                cshape->updateChildTransform(i, tr, false);
+            }
+            cshape->recalculateLocalAabb();
+            m_bt.ghost->setWorldTransform(m_transform);
+            break;
     }
 }
 
 void Entity::ghostUpdate()
 {
-#if 0
-    if(m_bt.shapes.empty())
-        return;
-
-    btCompoundShape* cshape = (btCompoundShape*)m_bt.ghost->getCollisionShape();
-
-    for(uint16_t i = 0; i < m_bf.bone_tags.size(); i++)
-    {
-        btTransform tr = m_bf.bone_tags[i].full_transform;
-        tr.setOrigin(tr * m_bf.bone_tags[i].mesh_base->m_center);
-        cshape->updateChildTransform(i, tr);
-    }
-    m_bt.ghost->setWorldTransform(m_transform);
-
-#else
     updateGhost();
-#endif
 }
 
 
@@ -236,6 +244,8 @@ void Entity::genRigidBody()
             case COLLISION_SHAPE_TRIMESH_CONVEX:
                 cshape = BT_CSfromMesh(mesh, true, true, false);
 //                cshape = BT_CSfromBBox(mesh->m_bbMin, mesh->m_bbMax, true, true);
+                // ! boxShape needs centering in updateRigidbody:
+//                cshape = new btBoxShape((mesh->m_bbMax - mesh->m_bbMin)*0.5f);
                 break;
 
                 // static btBvhTriangleMeshShape:
@@ -766,6 +776,8 @@ void Entity::updateRigidBody(bool force)
 {
     if(m_typeFlags & ENTITY_TYPE_DYNAMIC)
     {
+        // FIXME: dynamics inverse mapping
+
         //btVector3 pos = bt.bt_body[0]->getWorldTransform().getOrigin();
         //vec3_copy(transform+12, pos);
         m_transform = m_bt.bt_body[0]->getWorldTransform();
@@ -855,6 +867,8 @@ void Entity::updateRigidBody(bool force)
                 if(m_bt.bt_body[i])
                 {
                     m_bt.bt_body[i]->getWorldTransform() = m_transform * m_bf.bone_tags[i].full_transform;
+                    // FIXME: adjust center only for centered shapes (sphere, box, ...)
+//                    m_bt.bt_body[i]->getWorldTransform().setOrigin(m_bt.bt_body[i]->getWorldTransform() * m_bf.bone_tags[i].mesh_base->m_center);
                 }
             }
         }

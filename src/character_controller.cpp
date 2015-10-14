@@ -2116,6 +2116,10 @@ void Character::fixPenetrations(const btVector3* move)
 
     btVector3 reaction;
     int numPenetrationLoops = getPenetrationFixVector(&reaction, move != nullptr);
+
+    // TESTING:
+    reaction.setZ(0.0f);    // TODO: should zero depending center ray floor/ceil (updateCurrentHeight)
+
     m_transform.getOrigin() += reaction;
 
     updateCurrentHeight();

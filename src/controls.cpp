@@ -639,9 +639,18 @@ void Controls_PrimaryMouseDown()
     startTransform.setIdentity();
     btVector3 new_pos = v;
     startTransform.setOrigin(btVector3(new_pos[0], new_pos[1], new_pos[2]));
-    cshape->calculateLocalInertia(12, localInertia);
     btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
-    btRigidBody* body = new btRigidBody(12.0, motionState, cshape, localInertia);
+
+    btScalar mass = 12.0;
+    // mass scale would be ~ 419^3 = 73560059
+    // ... that beyond float prec., and apparently too much for bullet
+    //    cshape->calculateLocalInertia(12, localInertia);
+//    mass = 12.0 * 419.0*419.0*419.0;
+    mass = 8000000.0;
+    cshape->calculateLocalInertia(mass, localInertia);
+//    btRigidBody* body = new btRigidBody(12.0, motionState, cshape, localInertia);
+
+    btRigidBody* body = new btRigidBody(mass, motionState, cshape, localInertia);
     body->setDamping(0.3f,0.7f);
     bt_engine_dynamicsWorld->addRigidBody(body, COLLISION_GROUP_DYNAMICS, COLLISION_GROUP_ALL);
     body->setLinearVelocity(btVector3(dir[0], dir[1], dir[2]) * 6000);
