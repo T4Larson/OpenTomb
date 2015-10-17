@@ -66,6 +66,26 @@ enum class Substance
 #define ENTITY_TLAYOUT_LOCK     0x40    // Activity lock
 #define ENTITY_TLAYOUT_SSTATUS  0x80    // Sector status
 
+/*
+ * ENTITY MOVEMENT TYPES
+ */
+enum class MoveType
+{
+   StaticPos,
+   Kinematic,
+   OnFloor,
+   Wade,
+   Quicksand,
+   OnWater,
+   Underwater,
+   FreeFalling,
+   Climbing,
+   Monkeyswing,
+   WallsClimb,
+   Dozy,
+   Crouch
+};
+
 // Specific in-game entity structure.
 
 struct EntityCollisionNode
@@ -89,28 +109,11 @@ struct BtEntityData
 
     std::unique_ptr<btPairCachingGhostObject> ghost;
     int ghostType;
+    MoveType ghostMode;
+    btTransform ghostOffset;
 };
 
 class BtEngineClosestConvexResultCallback;
-
-/*
- * ENTITY MOVEMENT TYPES
- */
-enum class MoveType
-{
-   StaticPos,
-   Kinematic,
-   OnFloor,
-   Wade,
-   Quicksand,
-   OnWater,
-   Underwater,
-   FreeFalling,
-   Climbing,
-   Monkeyswing,
-   WallsClimb,
-   Dozy
-};
 
 struct Entity : public Object
 {
@@ -176,6 +179,7 @@ public:
     void createGhost(int type=0);
     void deleteGhost();
     void updateGhost();
+    void setGhostMode(MoveType mode);
 
     bool recoverFromPenetration();
 

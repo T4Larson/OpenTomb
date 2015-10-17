@@ -2118,7 +2118,11 @@ void Character::fixPenetrations(const btVector3* move)
     int numPenetrationLoops = getPenetrationFixVector(&reaction, move != nullptr);
 
     // TESTING:
-    reaction.setZ(0.0f);    // TODO: should zero depending center ray floor/ceil (updateCurrentHeight)
+    if(m_moveType != MoveType::Underwater && m_moveType != MoveType::WallsClimb && m_bt.ghostMode != MoveType::Crouch)
+    {
+        // TODO: should zero depending center ray floor/ceil (updateCurrentHeight)
+        reaction.setZ(0.0f);
+    }
 
     m_transform.getOrigin() += reaction;
 

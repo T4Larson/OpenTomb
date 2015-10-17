@@ -36,25 +36,28 @@ void Entity::createGhost(int ghostType)
     m_bt.manifoldArray.reset(new btManifoldArray());
     m_bt.shapes.clear();
 
-    btCollisionShape *ghostshape;
+    btCollisionShape *ghostshape = nullptr;;
     btTransform ghostoffs;
     ghostoffs.setIdentity();
 
     m_bt.ghostType = ghostType;
+    m_bt.ghostMode = MoveType::Dozy;    // fixme
     switch(ghostType)
     {
         case 0:     // simple collision shape:
         default:
-//            ghostshape = new btCapsuleShapeZ(100,762 - 2*100);  // TODO: lara base values from tr4
             ghostshape = new btCylinderShapeZ({100.0f, 100.0f, 762.0f/2.0f});  // TODO: lara base values from tr4
-
-//            btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 2);
-//            ghostshape->setLocalScaling({0.3f, 0.3f, 0.3f});
-
-            ghostoffs.setOrigin({0,0,762.0f/2.0f - 100.0f/2.0f});
+//            ghostoffs.setOrigin({0,0,762.0f/2.0f - 100.0f/2.0f});   // dummy
             break;
 
-        case 1:     // compound object representing actual bone pose:
+//        case 1:     // simple collision shape: multisphere
+//            btMultiSphereShape *ghostshape = new btMultiSphereShape(g_mss_positions, g_mss_radii, 2);
+//            ghostshape->setLocalScaling({0.3f, 0.3f, 0.3f});
+//
+//            ghostoffs.setOrigin({0,0,762.0f/2.0f - 100.0f/2.0f});
+//            break;
+
+        case -1:     // compound object representing actual bone pose:
             btCompoundShape* cshape = new btCompoundShape();
 
             for(size_t i = 0; i < m_bf.bone_tags.size(); i++)
@@ -78,6 +81,8 @@ void Entity::createGhost(int ghostType)
     m_bt.ghost->setCollisionFlags(m_bt.ghost->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     m_bt.ghost->setUserPointer(m_self.get());
     m_bt.ghost->setCollisionShape(ghostshape);
+    //FIXME:
+    setGhostMode(MoveType::OnFloor);
     bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghost.get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
 }
 void Entity::deleteGhost()
@@ -90,6 +95,150 @@ void Entity::deleteGhost()
     }
     m_bt.shapes.clear();
 }
+
+// FIXME: cache shapes, instead of re-creating them
+void Entity::setGhostMode(MoveType mode)
+{
+    // FIXME: temp. hack for crouch:
+    if(mode == MoveType::OnFloor) {
+        if( m_bf.animations.last_state == TR_STATE_LARA_CRAWL_BACK
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_FORWARD
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_IDLE
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_BACK
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_TURN_LEFT
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_TURN_RIGHT
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_IDLE
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_ROLL
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_TURN_LEFT
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_TURN_RIGHT
+        )
+        {
+            mode = MoveType::Crouch;
+        }
+
+    }
+
+    if(m_bt.ghostMode == mode || m_bt.ghostType < 0)
+        return;
+
+    if(m_bt.ghostMode == MoveType::Crouch)
+    {
+        m_bt.shapes.clear();
+    }
+    delete m_bt.ghost->getCollisionShape();
+
+    btScalar rad, top, low, height, offset;
+    switch(mode)    // -> movetype
+    {
+        // FIXME: Crouch???
+
+        case MoveType::OnFloor:
+        case MoveType::FreeFalling:
+        case MoveType::Climbing:
+        case MoveType::WallsClimb:
+            rad = 100.0f;
+            top = 762.0f;
+            low = 384.0f;
+
+            height = (top-low)/2.0f;
+            offset = low+height;
+            m_bt.ghost->setCollisionShape(new btCylinderShapeZ({rad, rad, height}));
+            m_bt.ghostOffset.setIdentity();
+            m_bt.ghostOffset.setOrigin({0,0, offset});
+            break;
+
+        case MoveType::Crouch:  // fixme: fallthrough seems to be a problem with floor-ray (getheight()...)
+            rad = 200.0f;
+            top = 400.0f;
+            low = 255.0f; // tr val
+            // fixme: need center offset f. penetration fix, in cases where horiz. < vert. fixvector,
+            // this would require a fixed separating axis get those penetrations... which may need
+            // a modified algorithm (processCollision), or a separate bounce-shape pass...
+//            low = 112.0f;
+
+            height = (top-low)/2.0f;
+            offset = low+height;
+#if 1
+            {
+                btScalar pad = 64.0;
+                btTransform tr;
+                btCollisionShape* child;
+                btCompoundShape* cshape = new btCompoundShape();
+
+                tr.setIdentity();
+
+                child = new btCylinderShapeZ({rad, rad, height});
+                m_bt.shapes.emplace_back(child);
+                tr.setOrigin({0,0, offset});
+                cshape->addChildShape(tr, child);
+
+                child = new btConeShapeZ(rad, low-pad);
+                m_bt.shapes.emplace_back(child);
+                tr.setRotation(btQuaternion(0, 180 * RadPerDeg, 0));
+                tr.setOrigin({0,0, low - (low-pad)/2.0f});
+                cshape->addChildShape(tr, child);
+
+//                child = new btSphereShape(rad);
+//                m_bt.shapes.emplace_back(child);
+//                tr.setOrigin({0,0, low});
+//                cshape->addChildShape(tr, child);
+
+                m_bt.ghost->setCollisionShape(cshape);
+                m_bt.ghostOffset.setIdentity();
+                m_bt.ghostOffset.setOrigin({0,0,0});
+            }
+#else
+            m_bt.ghost->setCollisionShape(new btCylinderShapeZ({rad, rad, height}));
+            m_bt.ghostOffset.setIdentity();
+            m_bt.ghostOffset.setOrigin({0,0, offset});
+#endif
+            break;
+
+        case MoveType::Monkeyswing:
+            rad = 100.0f;
+            top = 600.0f;
+            low = 0.0f;
+
+            height = (top-low)/2.0f;
+            offset = low+height;
+            m_bt.ghost->setCollisionShape(new btCylinderShapeZ({rad, rad, height}));
+            m_bt.ghostOffset.setIdentity();
+            m_bt.ghostOffset.setOrigin({0,0, offset});
+            break;
+
+        case MoveType::OnWater:
+            rad = 100.0f;
+            top = 128.0f;
+            low = -384.0f;
+
+            height = (top-low)/2.0f;
+            offset = low+height;
+            m_bt.ghost->setCollisionShape(new btCylinderShapeZ({rad, rad, height}));
+            m_bt.ghostOffset.setIdentity();
+            m_bt.ghostOffset.setOrigin({0,0, offset});
+            break;
+
+        case MoveType::Underwater:
+            rad = 100.0f;
+            top = 381.0f;
+            low = -381.0f;
+
+            height = top-low - 2*rad;
+            offset = low + (top-low)/2.0f;
+            m_bt.ghost->setCollisionShape(new btCapsuleShapeZ(rad, height));
+            m_bt.ghostOffset.setIdentity();
+            m_bt.ghostOffset.setOrigin({0,0, offset});
+            m_bt.ghostOffset = btTransform(btQuaternion(0, -90 * RadPerDeg, 0)) * m_bt.ghostOffset;    // ypr
+            break;
+
+        default:
+            break;
+    }
+    m_bt.ghostMode = mode;
+    // TODO: does ghost need cleanProxyFromPairs flushing?
+    m_bt.ghost->getOverlappingPairCache()->cleanProxyFromPairs(m_bt.ghost->getBroadphaseHandle(),bt_engine_dynamicsWorld->getDispatcher());
+}
+
 void Entity::updateGhost()
 {
     if(!m_bt.ghost)
@@ -102,40 +251,17 @@ void Entity::updateGhost()
         case 0:
         default:
         {
-            btScalar lowHeight = 384.0f;
-            btScalar topHeight = 762.0f;
-            btScalar radius = 100.0f;
-
-            btScalar gshape_radius = 100.0f;
-//            btScalar gshape_height = 762.0f - 2.0f * gshape_radius;
-
-            btScalar gshape_height = 762.0f/2.0f;
-
-            // capsule localScaling scales radius, too:
-            // total capsule height = height + 2*radius
-            // -> when radius is adjusted, also need to adjust height (if caps-top should be height)
-            btScalar rad_scale = radius / gshape_radius;
-
-//            btScalar newHeight = topHeight - lowHeight - 2.0f*radius;
-//            if(newHeight < 0.0f) newHeight = 0.001f;    // fixme: need squashed?
-//
-//            btScalar height_scale = newHeight / gshape_height;
-//            btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
-
-
-            btScalar newHeight = topHeight - lowHeight;
-            btScalar height_scale = newHeight / gshape_height;
-            btScalar height_ofs = topHeight - (topHeight-lowHeight)/2.0f;
-
-            m_bt.ghost->getCollisionShape()->setLocalScaling({rad_scale, rad_scale, height_scale/2.0f});
-            btTransform ghostoffs;
-            ghostoffs.setIdentity();
-            ghostoffs.setOrigin({0,0, height_ofs});
-            m_bt.ghost->setWorldTransform(m_transform * ghostoffs);
+            setGhostMode(m_moveType);
+            m_bt.ghost->setWorldTransform(m_transform * m_bt.ghostOffset);
             break;
         }
 
-        case 1:
+//        case 1:
+//        {
+//            break;
+//        }
+
+        case -1:
             if(m_bt.shapes.empty())
                 return;
 
@@ -153,6 +279,8 @@ void Entity::updateGhost()
 //                else
 //                {
 //                    cshape->getChildShape(i)->setLocalScaling({1,1,1});
+//                    // need manual margin adjust:
+//                    //static_cast<btBoxShape*>(cshape)->setImplicitShapeDimensions();
 //                }
                 cshape->updateChildTransform(i, tr, false);
             }
@@ -403,7 +531,6 @@ bool Entity::recoverFromPenetration()
     btCollisionShape* convexShape = m_bt.ghost->getCollisionShape();
 
     btVector3 currentPosition;
-    btVector3 touchingNormal;
 
 //    btManifoldArray m_manifoldArray = m_bt.manifoldArray.get();
 
@@ -427,8 +554,9 @@ bool Entity::recoverFromPenetration()
 
     currentPosition = ghostObject->getWorldTransform().getOrigin();
 
+//    btScalar maxPen = btScalar(0.0);
+//    btVector3 touchingNormal;
     bool penetration = false;
-    btScalar maxPen = btScalar(0.0);
     for(int i = 0; i < ghostObject->getOverlappingPairCache()->getNumOverlappingPairs(); i++)
     {
         btBroadphasePair* collisionPair = &ghostObject->getOverlappingPairCache()->getOverlappingPairArray()[i];
@@ -436,7 +564,6 @@ bool Entity::recoverFromPenetration()
         btCollisionObject* obj0 = static_cast<btCollisionObject*>(collisionPair->m_pProxy0->m_clientObject);
         btCollisionObject* obj1 = static_cast<btCollisionObject*>(collisionPair->m_pProxy1->m_clientObject);
 
-        // TODO: check depending on self...
         if((obj0 && !obj0->hasContactResponse()) && (obj1 && !obj1->hasContactResponse()))
         {
             continue;
@@ -450,12 +577,6 @@ bool Entity::recoverFromPenetration()
            || cont1->collision_type == COLLISION_TYPE_GHOST
            || (cont0->object == this && cont1->object == this))
         {
-            continue;
-        }
-
-        if(cont0->object == this && cont1->object == this)
-        {
-//            printf("** Self collision\n");
             continue;
         }
 
@@ -475,12 +596,12 @@ bool Entity::recoverFromPenetration()
 
                 if(dist < 0.0)
                 {
-                    if(dist < maxPen)
-                    {
-                        maxPen = dist;
-                        touchingNormal = pt.m_normalWorldOnB * directionSign;//??
-
-                    }
+//                    if(dist < maxPen)
+//                    {
+//                        maxPen = dist;
+//                        touchingNormal = pt.m_normalWorldOnB * directionSign;
+//
+//                    }
                     currentPosition += pt.m_normalWorldOnB * directionSign * dist * btScalar(0.2);
                     penetration = true;
                 }
@@ -491,6 +612,7 @@ bool Entity::recoverFromPenetration()
             }
         }
     }
+
     btTransform newTrans = ghostObject->getWorldTransform();
     newTrans.setOrigin(currentPosition);
     ghostObject->setWorldTransform(newTrans);
@@ -529,73 +651,6 @@ int Entity::getPenetrationFixVector(btVector3* reaction, bool hasMove)
     *reaction = m_bt.ghost->getWorldTransform().getOrigin() - start_pos;
 
     return touchingContact;
-
-
-#if 0
-    reaction->setZero();
-    if(m_bt.ghostObjects.empty() || m_bt.no_fix_all)
-        return 0;
-
-    assert(m_bt.ghostObjects.size() == m_bf.bone_tags.size());
-
-    auto orig_pos = m_transform.getOrigin();
-    int ret = 0;
-    for(size_t i = 0; i < m_bf.animations.model->collision_map.size(); i++)
-    {
-        uint16_t m = m_bf.animations.model->collision_map[i];
-        SSBoneTag* btag = &m_bf.bone_tags[m];
-
-        if(btag->body_part & m_bt.no_fix_body_parts)
-        {
-            continue;
-        }
-
-        // antitunneling condition for main body parts, needs only in move case: ((move != NULL) && (btag->body_part & (BODY_PART_BODY_LOW | BODY_PART_BODY_UPPER)))
-        btVector3 from;
-        if((btag->parent == nullptr) || (hasMove && (btag->body_part & (BODY_PART_BODY_LOW | BODY_PART_BODY_UPPER))))
-        {
-            from = m_bt.ghostObjects[m]->getWorldTransform().getOrigin();
-            from += m_transform.getOrigin() - orig_pos;
-        }
-        else
-        {
-            auto parent_from = btag->parent->full_transform * btag->parent->mesh_base->m_center;
-            from = m_transform * parent_from;
-        }
-
-        auto tr = m_transform * btag->full_transform;
-        auto to = tr * btag->mesh_base->m_center;
-        auto curr = from;
-        auto move = to - from;
-        auto move_len = move.length();
-        if((i == 0) && (move_len > 1024.0))                                 ///@FIXME: magick const 1024.0!
-        {
-            break;
-        }
-        int iter = static_cast<int>((4.0 * move_len / btag->mesh_base->m_radius) + 1);     ///@FIXME (not a critical): magick const 4.0!
-        move /= (btScalar)iter;
-
-        for(int j = 0; j <= iter; j++)
-        {
-            tr.setOrigin(curr);
-            auto tr_current = tr;
-            m_bt.ghostObjects[m]->setWorldTransform(tr_current);
-            btVector3 tmp;
-            if(Ghost_GetPenetrationFixVector(m_bt.ghostObjects[m].get(), m_bt.manifoldArray.get(), &tmp))
-            {
-                m_transform.getOrigin() += tmp;
-                curr += tmp;
-                from += tmp;
-                ret++;
-            }
-            curr += move;
-        }
-    }
-    *reaction = m_transform.getOrigin() - orig_pos;
-    m_transform.setOrigin(orig_pos);
-
-    return ret;
-#endif
 }
 
 void Entity::fixPenetrations(const btVector3* move)
