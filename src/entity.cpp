@@ -178,14 +178,14 @@ void Entity::setGhostMode(MoveType mode)
                 tr.setOrigin({0,0, low - (low-pad)/2.0f});
                 cshape->addChildShape(tr, child);
 
-//                child = new btSphereShape(rad);
-//                m_bt.shapes.emplace_back(child);
-//                tr.setOrigin({0,0, low});
-//                cshape->addChildShape(tr, child);
+                // remove/add doesn't fix all cached pairs, see flushing below
+//                bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghost.get());
 
                 m_bt.ghost->setCollisionShape(cshape);
                 m_bt.ghostOffset.setIdentity();
                 m_bt.ghostOffset.setOrigin({0,0,0});
+
+//                bt_engine_dynamicsWorld->addCollisionObject(m_bt.ghost.get(), COLLISION_GROUP_CHARACTERS, COLLISION_GROUP_ALL);
             }
 #else
             m_bt.ghost->setCollisionShape(new btCylinderShapeZ({rad, rad, height}));
@@ -236,7 +236,12 @@ void Entity::setGhostMode(MoveType mode)
     }
     m_bt.ghostMode = mode;
     // TODO: does ghost need cleanProxyFromPairs flushing?
+    // Without, separation resolving doesn't work if already intersecting with new shape...
+    // bullet bug?: apparently, even removing/re-adding the (same?) ghost object doesn't flush world pairs!? (bullet crashes with stale ptrs)
+    //              - does this happen only with compound objects?
     m_bt.ghost->getOverlappingPairCache()->cleanProxyFromPairs(m_bt.ghost->getBroadphaseHandle(),bt_engine_dynamicsWorld->getDispatcher());
+    // the world cache may also contains stale pairs: need to do this, too:
+    bt_engine_dynamicsWorld->getBroadphase()->getOverlappingPairCache()->cleanProxyFromPairs(m_bt.ghost->getBroadphaseHandle(),bt_engine_dynamicsWorld->getDispatcher());
 }
 
 void Entity::updateGhost()
