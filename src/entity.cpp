@@ -413,9 +413,8 @@ void Entity::genRigidBody()
             {
                 case COLLISION_TYPE_KINEMATIC:
                     coll_group = COLLISION_GROUP_KINEMATIC;
-                    coll_with = COLLISION_GROUP_ALL ^ COLLISION_GROUP_STATIC;
+                    coll_with = COLLISION_GROUP_ALL ^ COLLISION_GROUP_STATIC ^ COLLISION_GROUP_KINEMATIC;
                     m_bt.bt_body.back()->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
-//                    m_bt.bt_body.back()->setActivationState(DISABLE_DEACTIVATION);
                     break;
 
                 case COLLISION_TYPE_GHOST:
