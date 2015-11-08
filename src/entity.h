@@ -30,6 +30,8 @@ struct SSAnimation;
 struct SSBoneFrame;
 struct RDSetup;
 
+class EntityGhost;
+
 #define ENTITY_TYPE_GENERIC                         (0x0000)    // Just an animating.
 #define ENTITY_TYPE_INTERACTIVE                     (0x0001)    // Can respond to other entity's commands.
 #define ENTITY_TYPE_TRIGGER_ACTIVATOR               (0x0002)    // Can activate triggers.
@@ -107,7 +109,7 @@ struct BtEntityData
 
     std::vector<EntityCollisionNode> last_collisions;
 
-    std::unique_ptr<btPairCachingGhostObject> ghost;
+    std::unique_ptr<EntityGhost> ghost;
     int ghostType;
     MoveType ghostMode;
     btTransform ghostOffset;
