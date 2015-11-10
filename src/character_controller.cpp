@@ -2118,10 +2118,24 @@ void Character::fixPenetrations(const btVector3* move)
     btVector3 reaction;
     int numPenetrationLoops = getPenetrationFixVector(&reaction, move != nullptr);
 
-    // TESTING:
+    // FIXME: TESTING: Avoid vert. collisionfix:
     if(m_moveType != MoveType::Underwater && m_moveType != MoveType::WallsClimb && m_bt.ghostMode != MoveType::Crouch)
     {
         // TODO: should zero depending center ray floor/ceil (updateCurrentHeight)
+        if(reaction.z() > SIMD_EPSILON) // fixme
+        {
+            if(move && reaction.x() < 0.001 && reaction.x() > -0.001
+                    && reaction.y() < 0.001 && reaction.y() > -0.001)
+            {
+//                reaction.setX(-(m_speed.x()/2.0));
+//                reaction.setY(-(m_speed.y()/2.0));
+                reaction.setX(-(move->x()/2.0));
+                reaction.setY(-(move->y()/2.0));
+            }
+            m_currentSpeed = 0.0;
+            m_speed[0] = 0.0;
+            m_speed[1] = 0.0;
+        }
         reaction.setZ(0.0f);
     }
 
