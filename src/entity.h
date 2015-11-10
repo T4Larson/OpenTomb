@@ -100,19 +100,13 @@ struct BtEntityData
     bool no_fix_all;
     uint32_t no_fix_body_parts; // TODO: obsolete
 
-    std::unique_ptr<btManifoldArray> manifoldArray;         // (ghost) keep track of the contact manifolds
-
-    std::vector<std::unique_ptr<btCollisionShape>> shapes;  // ghost shapes only
-
     std::vector< std::shared_ptr<btRigidBody> > bt_body;
     std::vector<std::shared_ptr<btTypedConstraint>> bt_joints;              // Ragdoll joints
 
     std::vector<EntityCollisionNode> last_collisions;
 
     std::unique_ptr<EntityGhost> ghost;
-    int ghostType;
     MoveType ghostMode;
-    btTransform ghostOffset;
 };
 
 class BtEngineClosestConvexResultCallback;
@@ -176,14 +170,13 @@ public:
     Entity(uint32_t id);
     ~Entity();
 
-    void createGhosts();
 
-    void createGhost(int type=0);
-    void deleteGhost();
-    void updateGhost();
-    void setGhostMode(MoveType mode);
+    virtual void createGhost();
+    virtual void deleteGhost();
+    virtual void updateGhost();
 
-    bool recoverFromPenetration();
+    void ghostUpdate(); // TODO: obsolete
+
 
     void enable();
     void disable();
@@ -191,8 +184,7 @@ public:
     void disableCollision();
     void genRigidBody();
 
-    void ghostUpdate();
-    void updateCurrentCollisions();
+
     int getPenetrationFixVector(btVector3 *reaction, bool hasMove);
     void checkCollisionCallbacks();
     bool wasCollisionBodyParts(uint32_t parts_flags);

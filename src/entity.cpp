@@ -25,33 +25,12 @@
 
 #include "EntityGhost.h"
 
-void Entity::createGhosts()
+
+void Entity::createGhost()
 {
-    createGhost(0);
-}
-
-//static btPairCachingGhostObject* GH = nullptr;
-void Entity::createGhost(int ghostType)
-{
-    // FIXME:
-    if(!isPlayer()) return;
-
-    if(m_bt.ghost || !m_bf.animations.model || m_bf.animations.model->mesh_count <= 0)
-        return;
-
-    m_bt.ghost.reset(new EntityGhost(this));
-
-    m_bt.ghost->addShape(new LaraShape_Default());   // 0
-    m_bt.ghost->addShape(new LaraShape_Crouch());    // 1
-    m_bt.ghost->addShape(new LaraShape_Monkey());    // 2
-    m_bt.ghost->addShape(new LaraShape_WaterSurf()); // 3
-    m_bt.ghost->addShape(new LaraShape_WaterDive()); // 4
-
-    m_bt.ghost->addToWorld(bt_engine_dynamicsWorld);
-
-    m_bt.ghostType = ghostType;
-    m_bt.ghostMode = MoveType::Dozy;    // fixme
-
+    // Unless controlled (AI,player), entities usually don't need a ghost.
+    // Sensor ghosts should be implemented separately, as they won't
+    // need updates every frame (less cache flushing...)
 }
 void Entity::deleteGhost()
 {
@@ -59,85 +38,20 @@ void Entity::deleteGhost()
     {
         m_bt.ghost.reset();
     }
-    m_bt.shapes.clear();
-}
-
-// FIXME: cache shapes, instead of re-creating them
-void Entity::setGhostMode(MoveType mode)
-{
-    // FIXME: Lara-Specific!
-
-
-    // FIXME: temp. hack for crouch:
-    if(mode == MoveType::OnFloor) {
-        if( m_bf.animations.last_state == TR_STATE_LARA_CRAWL_BACK
-            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_FORWARD
-            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_IDLE
-            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_BACK
-            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_TURN_LEFT
-            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_TURN_RIGHT
-            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_IDLE
-            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_ROLL
-            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_TURN_LEFT
-            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_TURN_RIGHT
-        )
-        {
-            mode = MoveType::Crouch;
-        }
-
-    }
-
-    if(m_bt.ghostMode == mode || m_bt.ghostType < 0)
-        return;
-
-    switch(mode)    // -> movetype
-    {
-        case MoveType::OnFloor:
-        case MoveType::FreeFalling:
-        case MoveType::Climbing:
-        case MoveType::WallsClimb:
-            m_bt.ghost->selectShape(0);
-            break;
-
-        case MoveType::Crouch:  // fixme: fallthrough seems to be a problem with floor-ray (getheight()...)
-            m_bt.ghost->selectShape(1); // crouch
-            break;
-
-        case MoveType::Monkeyswing:
-            m_bt.ghost->selectShape(2); // monkey
-            break;
-
-        case MoveType::OnWater:
-            m_bt.ghost->selectShape(3); // water surface
-            break;
-
-        case MoveType::Underwater:
-            m_bt.ghost->selectShape(4); // water dive
-            break;
-
-        default:
-            break;
-    }
-    m_bt.ghostMode = mode;
 }
 
 void Entity::updateGhost()
 {
-    if(!m_bt.ghost)
-    {
-        return;
-    }
+    if(!m_bt.ghost) return;
 
-    setGhostMode(m_moveType);
     m_bt.ghost->update();
 }
 
+// TODO: compat:
 void Entity::ghostUpdate()
 {
     updateGhost();
 }
-
-
 
 
 void Entity::enable()
@@ -1141,8 +1055,6 @@ Entity::Entity(uint32_t id)
     m_bt.bt_joints.clear();
     m_bt.no_fix_all = false;
     m_bt.no_fix_body_parts = 0x00000000;
-    m_bt.manifoldArray = nullptr;
-    m_bt.shapes.clear();
     m_bt.last_collisions.clear();
 
     m_bf.animations.model = nullptr;
@@ -1179,8 +1091,6 @@ Entity::~Entity()
     }
 
     deleteGhost();
-
-    m_bt.manifoldArray.reset();
 
     if(!m_bt.bt_body.empty())
     {

@@ -372,10 +372,14 @@ struct Character : public Entity
     ~Character();
 
     int checkNextPenetration(const btVector3& move);
+    void fixPenetrations(const btVector3* move) override;
+
+    void createGhost() override;
+    void updateGhost() override;
+    void setGhostMode(MoveType mode);
 
     void doWeaponFrame(btScalar time);
 
-    void fixPenetrations(const btVector3* move) override;
     btVector3 getRoomPos() const override
     {
         btVector3 pos = m_transform * m_bf.bone_tags.front().full_transform.getOrigin();

@@ -2172,7 +2172,7 @@ void lua_CreateEntityGhosts(int id)
 
     if(ent && (ent->m_bf.bone_tags.size() > 0))
     {
-        ent->createGhosts();
+        ent->createGhost();
     }
 }
 

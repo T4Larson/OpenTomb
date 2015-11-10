@@ -134,7 +134,7 @@ protected:
 class EntityShape_Skeletal : public btCompoundShape, public IEntityGhostShape
 {
 public:
-    EntityShape_Skeletal(SSBoneFrame *bf);
+    EntityShape_Skeletal(const SSBoneFrame *bf);
     ~EntityShape_Skeletal();
 
     const btTransform& update(const SSBoneFrame *bf);

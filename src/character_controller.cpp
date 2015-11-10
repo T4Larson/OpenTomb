@@ -15,6 +15,7 @@
 #include "script.h"
 #include "vmath.h"
 #include "world.h"
+#include "EntityGhost.h"
 
 Character::Character(uint32_t id)
     : Entity(id)
@@ -2674,3 +2675,95 @@ void Character::doWeaponFrame(btScalar time)
         }
     }
 }
+
+void Character::createGhost()
+{
+    // FIXME:
+    if(!isPlayer()) return Entity::createGhost();
+
+    if(m_bt.ghost || !m_bf.animations.model || m_bf.animations.model->mesh_count <= 0)
+        return;
+
+    m_bt.ghost.reset(new EntityGhost(this));
+
+    m_bt.ghost->addShape(new LaraShape_Default());   // 0
+    m_bt.ghost->addShape(new LaraShape_Crouch());    // 1
+    m_bt.ghost->addShape(new LaraShape_Monkey());    // 2
+    m_bt.ghost->addShape(new LaraShape_WaterSurf()); // 3
+    m_bt.ghost->addShape(new LaraShape_WaterDive()); // 4
+
+    m_bt.ghost->addToWorld(bt_engine_dynamicsWorld);
+
+    m_bt.ghostMode = MoveType::Dozy;    // fixme
+}
+
+void Character::setGhostMode(MoveType mode)
+{
+    // FIXME: temp. hack for crouch:
+    if(mode == MoveType::OnFloor) {
+        if( m_bf.animations.last_state == TR_STATE_LARA_CRAWL_BACK
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_FORWARD
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_IDLE
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_BACK
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_TURN_LEFT
+            || m_bf.animations.last_state == TR_STATE_LARA_CRAWL_TURN_RIGHT
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_IDLE
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_ROLL
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_TURN_LEFT
+            || m_bf.animations.last_state == TR_STATE_LARA_CROUCH_TURN_RIGHT
+        )
+        {
+            mode = MoveType::Crouch;
+        }
+
+    }
+
+    if(m_bt.ghostMode == mode)
+        return;
+
+    switch(mode)    // -> movetype
+    {
+        case MoveType::OnFloor:
+        case MoveType::FreeFalling:
+        case MoveType::Climbing:
+        case MoveType::WallsClimb:
+            m_bt.ghost->selectShape(0);
+            break;
+
+        case MoveType::Crouch:  // fixme: fallthrough seems to be a problem with floor-ray (getheight()...)
+            m_bt.ghost->selectShape(1); // crouch
+            break;
+
+        case MoveType::Monkeyswing:
+            m_bt.ghost->selectShape(2); // monkey
+            break;
+
+        case MoveType::OnWater:
+            m_bt.ghost->selectShape(3); // water surface
+            break;
+
+        case MoveType::Underwater:
+            m_bt.ghost->selectShape(4); // water dive
+            break;
+
+        default:
+            break;
+    }
+    m_bt.ghostMode = mode;
+}
+
+void Character::updateGhost()
+{
+    if(!m_bt.ghost) return;
+
+    setGhostMode(m_moveType);
+    m_bt.ghost->update();
+}
+
+
+
+
+
+
+
+

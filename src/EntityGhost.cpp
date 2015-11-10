@@ -44,7 +44,7 @@ LaraShape_Crouch::~LaraShape_Crouch()
 }
 
 
-EntityShape_Skeletal::EntityShape_Skeletal(SSBoneFrame* bf)
+EntityShape_Skeletal::EntityShape_Skeletal(const SSBoneFrame* bf)
 {
     for(size_t i = 0; i < bf->bone_tags.size(); i++)
     {
@@ -75,7 +75,6 @@ const btTransform& EntityShape_Skeletal::update(const SSBoneFrame* bf)
 {
     if(bf->bone_tags.size() != (unsigned)getNumChildShapes())
     {
-        // maybe raise some exceptions?
         return m_localOffset;
     }
     for(int i = 0; i < getNumChildShapes(); i++)
@@ -152,6 +151,9 @@ void EntityGhost::setCurrentShape(int shapeidx)
     }
 }
 
+
+// TODO: Update shouldn't be called externally at all,
+//       only internally when necessary
 /**
  * Update ghost object/ghostshapes.
  * Expects the shape's local transform as return value from shape->update()!
