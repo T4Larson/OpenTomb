@@ -2119,7 +2119,7 @@ void Character::fixPenetrations(const btVector3* move)
     int numPenetrationLoops = getPenetrationFixVector(&reaction, move != nullptr);
 
     // FIXME: TESTING: Avoid vert. collisionfix:
-    if(m_moveType != MoveType::Underwater && m_moveType != MoveType::WallsClimb && m_bt.ghostMode != MoveType::Crouch)
+    if(m_moveType != MoveType::Underwater && m_moveType != MoveType::WallsClimb && m_ghostMode != MoveType::Crouch)
     {
         // TODO: should zero depending center ray floor/ceil (updateCurrentHeight)
         if(reaction.z() > SIMD_EPSILON) // fixme
@@ -2708,7 +2708,7 @@ void Character::createGhost()
 
     m_bt.ghost->addToWorld(bt_engine_dynamicsWorld);
 
-    m_bt.ghostMode = MoveType::Dozy;    // fixme
+    m_ghostMode = MoveType::Dozy;    // fixme
 }
 
 void Character::setGhostMode(MoveType mode)
@@ -2732,7 +2732,7 @@ void Character::setGhostMode(MoveType mode)
 
     }
 
-    if(m_bt.ghostMode == mode)
+    if(m_ghostMode == mode)
         return;
 
     switch(mode)    // -> movetype
@@ -2763,7 +2763,7 @@ void Character::setGhostMode(MoveType mode)
         default:
             break;
     }
-    m_bt.ghostMode = mode;
+    m_ghostMode = mode;
 }
 
 void Character::updateGhost()

@@ -106,7 +106,6 @@ struct BtEntityData
     std::vector<EntityCollisionNode> last_collisions;
 
     std::unique_ptr<EntityGhost> ghost;
-    MoveType ghostMode;
 };
 
 class BtEngineClosestConvexResultCallback;

@@ -1393,7 +1393,7 @@ void GenerateAnimCommands(SkeletalModel* model)
                  * Per frame commands:
                  */
                 case TR_ANIMCOMMAND_PLAYSOUND:
-                    if(pointer[0] < af->frames.size())
+                    if((unsigned)pointer[0] < af->frames.size())
                     {
                         af->frames[pointer[0]].animCommands.push_back({command, pointer[1], 0, 0});
                     }
@@ -1402,7 +1402,7 @@ void GenerateAnimCommands(SkeletalModel* model)
                     break;
 
                 case TR_ANIMCOMMAND_PLAYEFFECT:
-                    if(pointer[0] < af->frames.size())
+                    if((unsigned)pointer[0] < af->frames.size())
                     {
                         af->frames[pointer[0]].animCommands.push_back({command, pointer[1], 0, 0});
                     }
@@ -3167,7 +3167,7 @@ void TR_GenSkeletalModel(World *world, size_t model_num, SkeletalModel *model, c
         anim->frames.resize(tr_animation->frame_end - tr_animation->frame_start + 1);
 
         int numFrameData = TR_GetNumFramesForAnimation(tr, tr_moveable->animation_index + i);
-        if(numFrameData > anim->frames.size()) {
+        if(numFrameData > (signed)anim->frames.size()) {
             numFrameData = anim->frames.size();
         }
 
@@ -3655,6 +3655,9 @@ void TR_GenEntities(World *world, const std::unique_ptr<loader::Level>& tr)
                     }
                     break;
 
+                case loader::Engine::TR2:
+                    break;
+
                 case loader::Engine::TR3:
                     LM = world->getModelByID(TR_ITEM_LARA_SKIN_TR3);
                     if(LM)
@@ -3684,6 +3687,7 @@ void TR_GenEntities(World *world, const std::unique_ptr<loader::Level>& tr)
                     break;
 
                 case loader::Engine::Unknown:
+                default:
                     break;
             };
 

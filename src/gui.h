@@ -7,8 +7,6 @@
 
 #include <list>
 
-namespace
-{
 constexpr int MaxTempLines = 256;
 
 // Screen metering resolution specifies user-friendly relative dimensions of screen,
@@ -33,7 +31,6 @@ constexpr float FontShadowHorizontalShift =  0.7f;
 // that are created dynamically may have variable string sizes.
 
 constexpr int LineDefaultSize = 128;
-}
 
 // Anchoring is needed to link specific GUI element to specific screen position,
 // independent of screen resolution and aspect ratio. Vertical and horizontal

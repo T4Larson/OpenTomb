@@ -14,21 +14,18 @@ struct CharacterCommand;
 #define LEFT_LEG                    (3)
 #define RIGHT_LEG                   (6)
 
-namespace
-{
-	constexpr float PENETRATION_TEST_OFFSET = 48.0f;        ///@TODO: tune it!
-	constexpr float WALK_FORWARD_OFFSET = 96.0f;        ///@FIXME: find real offset
-	constexpr float WALK_BACK_OFFSET = 16.0f;
-	constexpr float WALK_FORWARD_STEP_UP = 256.0f;       // by bone frame bb
-	constexpr float RUN_FORWARD_OFFSET = 128.0f;       ///@FIXME: find real offset
-	constexpr float RUN_FORWARD_STEP_UP = 320.0f;       // by bone frame bb
-	constexpr float CRAWL_FORWARD_OFFSET = 256.0f;
-	constexpr float LARA_HANG_WALL_DISTANCE = 128.0f - 24.0f;
-	constexpr float LARA_HANG_VERTICAL_EPSILON = 64.0f;
-	constexpr float LARA_HANG_VERTICAL_OFFSET = 12.0f;        // in original is 0, in real life hands are little more higher than edge
-	constexpr float LARA_TRY_HANG_WALL_OFFSET = 72.0f;        // It works more stable than 32 or 128
-	constexpr float LARA_HANG_SENSOR_Z = 800.0f;       // It works more stable than 1024 (after collision critical fix, of course)
-}
+constexpr float PENETRATION_TEST_OFFSET = 48.0f;        ///@TODO: tune it!
+constexpr float WALK_FORWARD_OFFSET = 96.0f;        ///@FIXME: find real offset
+constexpr float WALK_BACK_OFFSET = 16.0f;
+constexpr float WALK_FORWARD_STEP_UP = 256.0f;       // by bone frame bb
+constexpr float RUN_FORWARD_OFFSET = 128.0f;       ///@FIXME: find real offset
+constexpr float RUN_FORWARD_STEP_UP = 320.0f;       // by bone frame bb
+constexpr float CRAWL_FORWARD_OFFSET = 256.0f;
+constexpr float LARA_HANG_WALL_DISTANCE = 128.0f - 24.0f;
+constexpr float LARA_HANG_VERTICAL_EPSILON = 64.0f;
+constexpr float LARA_HANG_VERTICAL_OFFSET = 12.0f;        // in original is 0, in real life hands are little more higher than edge
+constexpr float LARA_TRY_HANG_WALL_OFFSET = 72.0f;        // It works more stable than 32 or 128
+constexpr float LARA_HANG_SENSOR_Z = 800.0f;       // It works more stable than 1024 (after collision critical fix, of course)
 
 
 // Surface movement directions

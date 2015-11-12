@@ -75,8 +75,6 @@
 #define CHARACTER_USE_COMPLEX_COLLISION         (1)
 
 
-namespace
-{
 // Speed limits
 constexpr float FREE_FALL_SPEED_1        = 2000.0f;
 constexpr float FREE_FALL_SPEED_2        = 4500.0f;
@@ -125,7 +123,6 @@ constexpr float LARA_PARAM_POISON_MAX             = 5.0f;
 constexpr float CHARACTER_BOX_HALF_SIZE = 128.0f;
 constexpr float CHARACTER_BASE_RADIUS   = 128.0f;
 constexpr float CHARACTER_BASE_HEIGHT   = 512.0f;
-}
 
 // flags constants
 enum class SlideType
@@ -367,6 +364,9 @@ struct Character : public Entity
 
     std::shared_ptr<BtEngineClosestRayResultCallback> m_rayCb;
     std::shared_ptr<BtEngineClosestConvexResultCallback> m_convexCb;
+
+    MoveType m_ghostMode;
+
 
     Character(uint32_t id);
     ~Character();
