@@ -783,7 +783,13 @@ int State_Control_Lara(Character* character, struct SSAnimation *ss_anim)
             // Run and walk animations
 
         case TR_STATE_LARA_RUN_FORWARD:
-            global_offset = character->m_transform.getBasis().getColumn(1) * RUN_FORWARD_OFFSET;
+            // ! nextStep = currentDirection * currentSpeed !
+            global_offset = character->m_transform.getBasis().getColumn(1) * character->m_currentSpeed; //RUN_FORWARD_OFFSET;
+            // however, stepup-animation is displaced by step-up height already, so starting this
+            // too early (when ent-height is still lower than step) will have the meshes suddenly shifted,
+            // so the animation must be synced with the step-up displacement...
+            // TODO: need to detect transition that just happened:
+//            global_offset = character->m_transform.getBasis().getColumn(1) * 0; // this is not detected...
             global_offset[2] += character->m_bf.bb_max[2];
             nextStep = character->checkNextStep(global_offset, &next_fc);
             character->m_dirFlag = ENT_MOVE_FORWARD;
