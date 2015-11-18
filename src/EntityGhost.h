@@ -21,6 +21,7 @@ public:
     // FIXME: update used mainly for localOffset, rarely needs shape change
     virtual const btTransform& update(const SSBoneFrame* bf) = 0;
     virtual btCollisionShape* getShape() = 0;
+    virtual btVector3 getCenter() = 0;
 };
 
 
@@ -34,8 +35,7 @@ public:
     : btCylinderShapeZ({radius, radius, (top-bottom)/btScalar(2.0)})
     , m_radius(radius), m_top(top), m_bottom(bottom)
     {
-        const btScalar height = (top-bottom) / 2.0;
-        const btScalar offset = bottom + height;
+        const btScalar offset = (top+bottom) / 2.0;
         m_localOffset.setIdentity();
         m_localOffset.setOrigin({0,0,offset});
     }
@@ -45,6 +45,7 @@ public:
         return m_localOffset;
     }
     btCollisionShape* getShape() { return this; }
+    btVector3 getCenter() { return m_localOffset.getOrigin(); }
 protected:
     btScalar m_radius, m_top, m_bottom;
     btTransform m_localOffset;
@@ -58,7 +59,7 @@ public:
     , m_radius(radius), m_top(top), m_bottom(bottom)
     {
         // const btScalar height = top-bottom - 2.0*radius;
-        const btScalar offset = bottom + (top - bottom)/2.0;
+        const btScalar offset = (top + bottom)/2.0;
         m_localOffset.setIdentity();
         m_localOffset.setOrigin({0,0,offset});
         m_localOffset = btTransform(btQuaternion(0, -90 * RadPerDeg, 0)) * m_localOffset;    // ypr
@@ -69,6 +70,7 @@ public:
         return m_localOffset;
     }
     btCollisionShape* getShape() { return this; }
+    btVector3 getCenter() { return m_localOffset.getOrigin(); }
 protected:
     btScalar m_radius, m_top, m_bottom;
     btTransform m_localOffset;
@@ -125,9 +127,10 @@ public:
         return m_localOffset;
     }
     btCollisionShape* getShape() { return this; }
+    btVector3 getCenter() { return m_center; }
 protected:
     btTransform m_localOffset;
-
+    btVector3 m_center;
 };
 
 
@@ -139,6 +142,7 @@ public:
 
     const btTransform& update(const SSBoneFrame *bf);
     btCollisionShape* getShape() { return this; }
+    btVector3 getCenter();
 protected:
     std::vector<btCollisionShape*> subShapes;
     btTransform m_localOffset;
@@ -192,6 +196,9 @@ public:
 
     void addToWorld(btDynamicsWorld *w);
     void removeFromWorld();
+
+    btVector3 getCenter(int idx);
+    btVector3 getCenter() { return getCenter(m_selectedShape); }
 
     void checkCollision();
     void checkCollision(btTransform& t);

@@ -136,10 +136,9 @@ int32_t Character::getItemsCount(uint32_t item_id)         // returns items coun
  */
 void Character::updateCurrentHeight()
 {
-    btVector3 t;
-    t[0] = 0.0;
-    t[1] = 0.0;
-    t[2] = m_bf.bone_tags[0].transform.getOrigin()[2];
+    btVector3 t = m_bt.ghost->getCenter();
+    t.setX(0);
+    t.setY(0);
     auto pos = m_transform * t;
     Character::getHeightInfo(pos, &m_heightInfo, m_height);
 }

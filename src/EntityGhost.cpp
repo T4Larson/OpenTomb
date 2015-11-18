@@ -27,6 +27,8 @@ LaraShape_Crouch::LaraShape_Crouch()
     tr.setOrigin({0,0, offset});
     addChildShape(tr, child);
 
+    m_center = tr.getOrigin();  // center for collision/heightscan should ignore the cone
+
     child = new btConeShapeZ(rad, low-pad);
     tr.setRotation(btQuaternion(0, 180 * RadPerDeg, 0));
     tr.setOrigin({0,0, low - (low-pad)/2.0f});
@@ -43,6 +45,8 @@ LaraShape_Crouch::~LaraShape_Crouch()
     }
 }
 
+
+// ---------------------
 
 EntityShape_Skeletal::EntityShape_Skeletal(const SSBoneFrame* bf)
 {
@@ -97,13 +101,22 @@ const btTransform& EntityShape_Skeletal::update(const SSBoneFrame* bf)
     recalculateLocalAabb();
     return m_localOffset;
 }
+btVector3 EntityShape_Skeletal::getCenter() {
+    btTransform t;
+    t.setIdentity();
+    btVector3 bbmin, bbmax;
+    getShape()->getAabb(t, bbmin, bbmax);
+    return m_localOffset.getOrigin() + (bbmax-bbmin) * 0.5;
+}
+
+
 
 
 /*
  * =========================================================
  * ==== EntityGhost
+ * =========================================================
  */
-
 
 /**
  * Add selectable shape to ghost.
@@ -230,6 +243,13 @@ void EntityGhost::checkCollision()
 void EntityGhost::checkCollision(btTransform& t)
 {
 
+}
+
+btVector3 EntityGhost::getCenter(int idx) {
+    if(idx < 0 || (unsigned)idx >= m_shapes.size())
+        return {0,0,0};
+
+    return m_shapes[idx]->getCenter();
 }
 
 bool EntityGhost::recoverFromPenetration()
@@ -363,15 +383,6 @@ int EntityGhost::getPenetrationFixVector(btVector3* reaction)
     m_lastFixVector = *reaction;
     return touchingContact;
 }
-
-
-
-
-
-
-
-
-
 
 
 
