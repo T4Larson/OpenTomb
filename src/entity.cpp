@@ -1191,9 +1191,14 @@ bool Entity::createRagdoll(RDSetup* setup)
     updateRigidBody(true);
     for(size_t i = 0; i < m_bf.bone_tags.size(); i++)
     {
-        bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get());
+        bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(),COLLISION_GROUP_DYNAMICS,COLLISION_GROUP_ALL);
+        m_bt.bt_body[i]->setCollisionFlags(0);
+        m_bt.bt_body[i]->setActivationState(ACTIVE_TAG);
+
         m_bt.bt_body[i]->activate();
         m_bt.bt_body[i]->setLinearVelocity(m_speed);
+
+
 //        if(i < m_bt.ghostObjects.size() && m_bt.ghostObjects[i])
 //        {
 //            bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghostObjects[i].get());
@@ -1294,7 +1299,11 @@ bool Entity::deleteRagdoll()
     {
         bt_engine_dynamicsWorld->removeRigidBody(m_bt.bt_body[i].get());
         m_bt.bt_body[i]->setMassProps(0, btVector3(0.0, 0.0, 0.0));
+        m_bt.bt_body[i]->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
+        // FIXME: Flags may vary depending on entity definition/ragdoll type!
+        //m_bt.bt_body[i]->setActivationState(DISABLE_DEACTIVATION);
         bt_engine_dynamicsWorld->addRigidBody(m_bt.bt_body[i].get(), COLLISION_GROUP_KINEMATIC, COLLISION_GROUP_ALL);
+
 //        if(i < m_bt.ghostObjects.size() && m_bt.ghostObjects[i])
 //        {
 //            bt_engine_dynamicsWorld->removeCollisionObject(m_bt.ghostObjects[i].get());
