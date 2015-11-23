@@ -11,15 +11,16 @@
 
 #include <initializer_list>
 
-class SH_Lara : public EntityStateHandler
+
+class SH_Lara_Impl : public SH_Lara
 {
 public:
-    SH_Lara(Entity *pEnt)
-    : EntityStateHandler(pEnt)
+    SH_Lara_Impl(Entity *pEnt)
+    : SH_Lara(pEnt)
     {
-        registerState(TR_STATE_LARA_WALK_FORWARD, new walk);
-        registerState(TR_STATE_LARA_RUN_FORWARD,  new run);
-        registerState(TR_STATE_LARA_STOP,         new stand);
+        registerState(WALK, new walk);
+        registerState(RUN,  new run);
+        registerState(STOP, new stand);
     }
 
     // dev: service methods for state rules:
@@ -324,12 +325,13 @@ public:
 
 };
 
-
 // TODO: See about how to tie this to the Model (BoneFrame) later...
-EntityStateHandler* createStateHandler_Lara(Entity* pEnt)
+EntityStateHandler* SH_Lara::createInstance(Entity* pEnt)
 {
-    return new SH_Lara(pEnt);
+    return new SH_Lara_Impl(pEnt);
 }
+
+
 
 
 
